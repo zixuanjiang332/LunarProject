@@ -15,20 +15,21 @@ public class TestMobListener implements Listener {
         event.getMob().getEntity().setHealth(event.getMob().getEntity().getHealth()*1000);
     }
     @EventHandler
-    public void onPlayerJoin (PlayerJoinEvent event){
+    public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        player.getAttribute(Attribute.MAX_HEALTH).setBaseValue(20000);
-        player.setHealthScaled(true);
-        player.setHealthScale(20);
-
-        ItemStack testItem = ItemSkillManager.getMythicItem("Example_Player_Weapon");
-
-        if (testItem != null) {
-            testItem = ItemSkillManager.applySkillToItem(testItem, "RIGHT_CLICK", "Player_Weapon_RightClick");
-            testItem = ItemSkillManager.applySkillToItem(testItem, "LEFT_CLICK", "Player_Weapon_LeftClick");
-            // testItem = ItemSkillManager.applySkillToItem(testItem, "SHIFT_RIGHT_CLICK", "Player_Ultimate_Skill");
-
-            player.getInventory().addItem(testItem);
+        ItemStack ultimateWeapon = ItemSkillManager.createSkillWeapon(
+                "Testitem",  // MM 中配置的外观和基础属性
+                "TEST_LEFT",            // 左键：基础斩击 (1秒CD)
+                "TEST_RIGHT",           // 右键：重型劈砍 (5秒CD)
+                null
+        );
+        ItemStack ultimateArmor = ItemSkillManager.createSkillArmor(
+                "Abyss_Boots",  // MM 中配置的外观和基础属性
+                "TEST_EQUIP",
+                "TEST_UNEQUIP"
+        );
+        if (ultimateWeapon != null) {
+            player.getInventory().addItem(ultimateWeapon);
         }
     }
 }
