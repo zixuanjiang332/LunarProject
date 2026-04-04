@@ -1,0 +1,5 @@
+name: LunarProject
+version: '1.0-SNAPSHOT'
+main: jdd.lunarProject.LunarProject
+api-version: '1.21'
+description: balbala
