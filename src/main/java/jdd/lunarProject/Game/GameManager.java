@@ -2,35 +2,34 @@ package jdd.lunarProject.Game;
 import org.bukkit.entity.Player;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 public class GameManager {
     private static final Map<String, Game> activeGames = new HashMap<>();
-    private static final Map<Player, Game> playerGameMap = new HashMap<>();
-    // 创建一局新游戏
+    private static final Map<UUID, Game> playerGameMap = new HashMap<>();
+
     public static Game createGame() {
         Game game = new Game();
         activeGames.put(game.getGameId(), game);
         return game;
     }
+
     public static Game getGame(String id) {
         return activeGames.get(id);
     }
 
-    // 获取玩家当前所在的游戏
-    public static Game getPlayerGame(Player player) {
-        return playerGameMap.get(player);
+    public static Game getPlayerGame(UUID uuid) {
+        return playerGameMap.get(uuid);
     }
 
-    // 绑定/解绑玩家与游戏的关系
-    public static void setPlayerGame(Player player, Game game) {
+    public static void setPlayerGame(UUID uuid, Game game) {
         if (game == null) {
-            playerGameMap.remove(player);
+            playerGameMap.remove(uuid);
         } else {
-            playerGameMap.put(player, game);
+            playerGameMap.put(uuid, game);
         }
     }
 
-    // 强制停止所有游戏 (通常在插件 onDisable 时调用)
     public static void stopAllGames() {
         for (Game game : activeGames.values()) {
             game.stop();

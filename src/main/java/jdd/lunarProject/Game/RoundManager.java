@@ -22,7 +22,7 @@ public class RoundManager {
     public void loadNextStage(String nextMapName) {
         currentRound++;
 
-        for (Player p : game.getActivePlayers()) {
+        for (Player p : game.getActiveOnlinePlayers()) {
             p.sendMessage("§e正在为您生成第 " + currentRound + " 回合...");
         }
 
@@ -34,22 +34,18 @@ public class RoundManager {
         // 2. 加载新一轮的关卡地图
         currentStage = new GameLevel(nextMapName,"ROUND_"+currentRound);
         if (currentStage.load()) {
-
-            // 确定出生点（暂定传送至 Boss 中心点，你可以后续在 yml 中单独加一个 player-spawn-location）
             Location spawnLoc = currentStage.getBossLocation();
             if (spawnLoc == null) spawnLoc = currentStage.getWorld().getSpawnLocation();
-
             // 3. 将存活玩家传送进新地图
-            for (Player p : game.getActivePlayers()) {
+            for (Player p : game.getActiveOnlinePlayers()) {
                 p.teleport(spawnLoc);
                 p.sendMessage("§c⚔ 第 " + currentRound + " 回合 战斗开始！");
             }
 
             // 将阵亡玩家也传送过去观看
-            for (Player p : game.getDeadPlayers()) {
+            for (Player p : game.getDeadOnlinePlayers()) {
                 p.teleport(spawnLoc);
             }
-
             // 4. 触发刷怪
             startSpawningMonsters();
 
@@ -81,7 +77,9 @@ public class RoundManager {
             e.printStackTrace();
         }
     }
-
+    public GameLevel getCurrentStage() {
+        return currentStage;
+    }
     public void cleanUp() {
         if (currentStage != null) {
             currentStage.unload();

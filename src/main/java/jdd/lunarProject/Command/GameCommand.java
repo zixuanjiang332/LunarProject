@@ -52,7 +52,7 @@ public class GameCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage("§c[LunarProject] 找不到ID为 " + args[1] + " 的游戏！");
                     return true;
                 }
-                Game current = GameManager.getPlayerGame(player);
+                Game current = GameManager.getPlayerGame(player.getUniqueId());
                 if (current != null) {
                     sender.sendMessage("§c[LunarProject] 你已经在游戏 [" + current.getGameId() + "] 中了！请先退出或结束该游戏。");
                     return true;
@@ -65,7 +65,7 @@ public class GameCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage("§c只有玩家可以执行此操作！");
                     return true;
                 }
-                Game myGame = GameManager.getPlayerGame(p1);
+                Game myGame = GameManager.getPlayerGame(p1.getUniqueId());
                 if (myGame == null) {
                     sender.sendMessage("§c[LunarProject] 你当前不在任何游戏中！");
                     return true;
@@ -90,7 +90,7 @@ public class GameCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage("§a[LunarProject] 已强制结束游戏: " + gameId);
                 } else if (sender instanceof Player p2) {
                     // 结束自己所在的游戏
-                    Game gameToStop = GameManager.getPlayerGame(p2);
+                    Game gameToStop = GameManager.getPlayerGame(p2.getUniqueId());
                     if (gameToStop == null) {
                         sender.sendMessage("§c[LunarProject] 你当前不在任何游戏中，或者请指定游戏ID: /game stop <id>");
                         return true;
