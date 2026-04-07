@@ -10,6 +10,8 @@ import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
 
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
+
 public class DamageIndicatorUtil {
 
     /**
@@ -19,10 +21,9 @@ public class DamageIndicatorUtil {
      * @param isCrit 是否为暴击（用于改变颜色和大小）
      */
     public static void spawnIndicator(Location targetLoc, double damage, boolean isCrit) {
-        Random random = new Random();
-        double offsetX = (random.nextDouble() - 0.5) * 1.5;
-        double offsetY = random.nextDouble() * 1.0 + 1.0; // 在实体头顶生成
-        double offsetZ = (random.nextDouble() - 0.5) * 1.5;
+        double offsetX = (ThreadLocalRandom.current().nextDouble() - 0.5) * 1.5;
+        double offsetY = ThreadLocalRandom.current().nextDouble() * 1.0 + 1.0;
+        double offsetZ = (ThreadLocalRandom.current().nextDouble() - 0.5) * 1.5;
         Location spawnLoc = targetLoc.clone().add(offsetX, offsetY, offsetZ);
         int displayDamage = (int) Math.round(damage);
         String text = isCrit ? "§c§l✩ " + displayDamage + " ✩" : "§7" + displayDamage;

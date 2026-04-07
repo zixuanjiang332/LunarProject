@@ -2,10 +2,14 @@ package jdd.lunarProject.SkillManager;
 import io.lumine.mythic.bukkit.MythicBukkit;
 import io.lumine.mythic.core.items.MythicItem;
 import jdd.lunarProject.LunarProject;
+import jdd.lunarProject.Weapon.TriggerType;
+import jdd.lunarProject.Weapon.WeaponSkill;
 import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
+
+import java.util.List;
 
 public class ItemSkillManager {
 
@@ -29,35 +33,56 @@ public class ItemSkillManager {
         NamespacedKey key = new NamespacedKey(LunarProject.getInstance(), "mm_skill_" + triggerType.toLowerCase());
         return meta.getPersistentDataContainer().get(key, PersistentDataType.STRING);
     }
-    /**
-     * 【全新进阶方法】：一键生成并装配完整的神兵利器
-     * * @param mmItemInternalName 你的朋友在 MM Items 文件夹里写的物品 ID
-     * @param leftSkillId        左键触发的技能 ID (可填 null)
-     * @param rightSkillId       右键触发的技能 ID (可填 null)
-     * @param shiftRightSkillId  潜行右键触发的技能 ID (可填 null)
-     * @return 已经带有各种 PDC 技能标签的成品武器
-     */
-    public static ItemStack createSkillWeapon(String mmItemInternalName, String leftSkillId, String rightSkillId, String shiftRightSkillId) {
-        // 1. 获取基础 MM 物品
-        java.util.Optional<MythicItem> maybeItem = MythicBukkit.inst().getItemManager().getItem(mmItemInternalName);
-        if (maybeItem.isEmpty()) return null;
+    public static ItemStack updateSkillLore(ItemStack item, TriggerType... displaySlots) {
+        if (item == null || !item.hasItemMeta()) return item;
+        org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
 
-        ItemStack weapon = MythicBukkit.inst().getItemManager().getItemStack(mmItemInternalName);
-        // 2. 一键批量附上技能
-        if (leftSkillId != null) weapon = applySkillToItem(weapon, "LEFT_CLICK", leftSkillId);
-        if (rightSkillId != null) weapon = applySkillToItem(weapon, "RIGHT_CLICK", rightSkillId);
-        if (shiftRightSkillId != null) weapon = applySkillToItem(weapon, "SHIFT_RIGHT_CLICK", shiftRightSkillId);
+        List<String> currentLore = meta.hasLore() ? meta.getLore() : new java.util.ArrayList<>();
+        List<String> cleanLore = new java.util.ArrayList<>();
 
-        return weapon;
+        // 1. 保留原本的 Lore（比如 MM 配置的攻击力、背景故事），直到遇到我们的"技能分割线"
+        String divider = "§8§m━━━§7 灵魂技能 §8§m━━━";
+        for (String line : currentLore) {
+            if (line.equals(divider)) break; // 遇到旧的分割线就停止读取，相当于清理掉旧技能描述
+            cleanLore.add(line);
+        }
+
+        // 2. 插入新的技能分割线
+        if (!cleanLore.isEmpty()) cleanLore.add(""); // 留个空行更美观
+        cleanLore.add(divider);
+
+        // 3. 动态生成全新的技能介绍！
+        for (TriggerType type : displaySlots) {
+            cleanLore.add("§b" + type.getDisplayName() + " "); // 打印：【左键技能】
+
+            // 去 PDC 里找这个孔位有没有绑技能
+            String skillId = getSkillFromItem(item, type.name());
+
+            if (skillId != null) {
+                WeaponSkill skill = SkillCastManager.getSkill(skillId);
+                if (skill != null) {
+                    cleanLore.add("  §e▶ §6" + skill.getDisplayName());
+                    cleanLore.add("    §7" + skill.getDescription());
+                } else {
+                    cleanLore.add("  §c▶ 技能数据丢失");
+                }
+            } else {
+                // 没有技能的话，默认显示 无
+                cleanLore.add("  §8▶ 无");
+            }
+        }
+
+        cleanLore.add("§8§m━━━━━━━━━━━━"); // 底部收尾
+
+        meta.setLore(cleanLore);
+        item.setItemMeta(meta);
+        return item;
     }
-    public static ItemStack createSkillArmor(String mmItemInternalName, String equipSkillId, String unequipSkillId) {
-        java.util.Optional<MythicItem> maybeItem = MythicBukkit.inst().getItemManager().getItem(mmItemInternalName);
-        if (maybeItem.isEmpty()) return null;
-        ItemStack armor = MythicBukkit.inst().getItemManager().getItemStack(mmItemInternalName);
-
-        if (equipSkillId != null) applySkillToItem(armor, "EQUIP", equipSkillId);
-        if (unequipSkillId != null) applySkillToItem(armor, "UNEQUIP", unequipSkillId);
-
-        return armor;
+    public static ItemStack getMythicItem(String internalName) {
+        java.util.Optional<MythicItem> maybeItem = MythicBukkit.inst().getItemManager().getItem(internalName);
+        if (maybeItem.isPresent()) {
+            return MythicBukkit.inst().getItemManager().getItemStack(internalName);
+        }
+        return null; // 如果 MM 里没这个物品，或者你朋友名字拼错了，安全返回 null
     }
 }

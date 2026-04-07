@@ -17,11 +17,10 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class MythicDamageListener implements Listener {
     private final DamageIndicatorUtil indicatorUtil = new DamageIndicatorUtil();
-    public static final double CRIT_CHANCE = 0.20; // 20% 暴击率
+    public static final double CRIT_CHANCE = 0.00; // 20% 暴击率
     public static final double CRIT_DAMAGE_MULTIPLIER = 2.0;
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onMythicDamage(MythicDamageEvent event) {
-        Entity targetEntity = event.getTarget().getBukkitEntity();
         double baseDamage = event.getDamage();
         double finalDamage = baseDamage * 1000;
         event.getDamageMetadata().setAmount(finalDamage);

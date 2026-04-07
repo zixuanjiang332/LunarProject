@@ -17,19 +17,14 @@ public class TestMobListener implements Listener {
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        ItemStack ultimateWeapon = ItemSkillManager.createSkillWeapon(
-                "Testitem",  // MM 中配置的外观和基础属性
-                "TEST_LEFT",            // 左键：基础斩击 (1秒CD)
-                "TEST_RIGHT",           // 右键：重型劈砍 (5秒CD)
-                null
-        );
-        ItemStack ultimateArmor = ItemSkillManager.createSkillArmor(
-                "Abyss_Boots",  // MM 中配置的外观和基础属性
-                "TEST_EQUIP",
-                "TEST_UNEQUIP"
-        );
-        if (ultimateWeapon != null) {
-            player.getInventory().addItem(ultimateWeapon);
-        }
+        player.setHealthScaled( true);
+        player.getAttribute(Attribute.MAX_HEALTH).setBaseValue(2000);
+        player.setHealthScale(20);
+        ItemStack ultimateWeapon = jdd.lunarProject.Weapon.WeaponRegistry.createItem("TEST_SWORD");
+        ItemStack ultimateArmor = jdd.lunarProject.Weapon.WeaponRegistry.createItem("ABYSS_BOOTS");
+        ItemStack compass = jdd.lunarProject.Weapon.WeaponRegistry.createItem("SANITY_TESTER");
+        if (ultimateWeapon != null) player.getInventory().addItem(ultimateWeapon);
+        if (ultimateArmor != null) player.getInventory().addItem(ultimateArmor);
+        if (compass != null) player.getInventory().addItem(compass);
     }
 }
