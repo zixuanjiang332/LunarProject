@@ -15,17 +15,20 @@ public class GameLevel {
     private final File sourceFolder;
     private File activeFolder;
     private World world;
-
+    private final String uniqueId;
     private Location centerBossLocation;
     private final List<Location> monsterSpawnLocations = new ArrayList<>();
 
-    public GameLevel(String mapName) {
+    public GameLevel(String mapName, String uniqueId) {
         this.mapName = mapName;
+        this.uniqueId = uniqueId;
         this.sourceFolder = new File(new File(LunarProject.getInstance().getDataFolder(), "maps"), mapName);
     }
-
     public boolean load() {
-        this.activeFolder = new File(Bukkit.getWorldContainer(), mapName + "_level_" + System.currentTimeMillis());
+        this.activeFolder = new File(
+                Bukkit.getWorldContainer(),
+                mapName + "_level_" + uniqueId+"_"+System.currentTimeMillis()
+        );
         try {
             FileUtils.copyDirectoryStructure(sourceFolder, activeFolder);
             this.world = Bukkit.createWorld(new WorldCreator(activeFolder.getName()).keepSpawnLoaded(TriState.FALSE));

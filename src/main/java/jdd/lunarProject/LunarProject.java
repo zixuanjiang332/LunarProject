@@ -1,11 +1,12 @@
 package jdd.lunarProject;
 
+import jdd.lunarProject.Game.GameManager;
 import jdd.lunarProject.MobsListener.*;
 import jdd.lunarProject.SkillManager.ItemSkillManager;
 import jdd.lunarProject.SkillManager.SkillCastManager;
 import jdd.lunarProject.Task.SinkingSpeedManager;
+import jdd.lunarProject.Weapon.ItemUseListener;
 import org.bukkit.Bukkit;
-import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class LunarProject extends JavaPlugin {
@@ -32,11 +33,12 @@ public final class LunarProject extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new TestMobListener(), this);
         getServer().getPluginManager().registerEvents(new MythicDamageListener(), this);
         getServer().getPluginManager().registerEvents(new DamageCalculator(),this);
-        getServer().getPluginManager().registerEvents(new ArmorChangeListener(), this);
     }
 
     @Override
     public void onDisable() {
-        // Plugin shutdown logic
+        // 【核心防 Bug 操作】插件关闭时强制结束所有进行中的游戏，回收地图内存
+        Bukkit.getLogger().info("正在清理所有的游戏实例和临时世界...");
+        GameManager.stopAllGames();
     }
 }

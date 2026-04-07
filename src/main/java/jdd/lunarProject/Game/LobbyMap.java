@@ -11,9 +11,9 @@ public class LobbyMap {
     private final File sourceFolder;
     private File activeFolder;
     private World bukkitWorld;
-
-    public LobbyMap() {
-        // 固定读取名为 LobbyTemplate 的模板
+    private final String gameId;
+    public LobbyMap(String gameId) {
+        this.gameId = gameId;
         this.sourceFolder = new File(new File(LunarProject.getInstance().getDataFolder(), "maps"), "LobbyTemplate");
     }
 
@@ -22,7 +22,7 @@ public class LobbyMap {
 
         this.activeFolder = new File(
                 Bukkit.getWorldContainer(),
-                "Lobby_Active_" + System.currentTimeMillis()
+                "Lobby_Active_" + gameId + "_" + System.currentTimeMillis()
         );
 
         try {

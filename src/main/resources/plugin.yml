@@ -3,3 +3,8 @@ version: '1.0-SNAPSHOT'
 main: jdd.lunarProject.LunarProject
 api-version: '1.21'
 description: balbala
+commands:
+  game:
+    description: 游戏管理主指令
+    usage: /game
+    permission: lunarproject.admin

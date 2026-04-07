@@ -20,11 +20,5 @@ public class TestMobListener implements Listener {
         player.setHealthScaled( true);
         player.getAttribute(Attribute.MAX_HEALTH).setBaseValue(2000);
         player.setHealthScale(20);
-        ItemStack ultimateWeapon = jdd.lunarProject.Weapon.WeaponRegistry.createItem("TEST_SWORD");
-        ItemStack ultimateArmor = jdd.lunarProject.Weapon.WeaponRegistry.createItem("ABYSS_BOOTS");
-        ItemStack compass = jdd.lunarProject.Weapon.WeaponRegistry.createItem("SANITY_TESTER");
-        if (ultimateWeapon != null) player.getInventory().addItem(ultimateWeapon);
-        if (ultimateArmor != null) player.getInventory().addItem(ultimateArmor);
-        if (compass != null) player.getInventory().addItem(compass);
     }
 }

@@ -15,6 +15,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.concurrent.ThreadLocalRandom;
@@ -23,16 +24,46 @@ import static jdd.lunarProject.MobsListener.MythicDamageListener.*;
 
 public class DamageCalculator implements Listener {
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
-    public void onEntityDamage(EntityDamageByEntityEvent event) {
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onGlobalVanillaAttack(EntityDamageByEntityEvent event) {
+        // 1. 确保伤害来源是玩家
         if (!(event.getDamager() instanceof Player)) return;
+        // 2. 我们只接管物理近战（左键平A 和 横扫），不影响跌落、燃烧或魔法伤害
+        if (event.getCause() != EntityDamageEvent.DamageCause.ENTITY_ATTACK &&
+                event.getCause() != EntityDamageEvent.DamageCause.ENTITY_SWEEP_ATTACK) {
+            return;
+        }
+        // =========================================================
+        // 3. 【核心黑科技】 溯源鉴别：是鼠标左键，还是 MM 技能？
+        // 我们通过读取当前线程的堆栈，查找是不是 MythicMobs 引擎发出的攻击指令！
+        // =========================================================
+        boolean isMythicSkill = false;
+        for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
+            // 如果执行代码的类名包含了 MM 的包名，说明这是技能打出的伤害！
+            if (element.getClassName().contains("io.lumine.mythic")) {
+                isMythicSkill = true;
+                break;
+            }
+        }
+        // 如果是 MM 技能打出的（比如你在 YAML 里写的 damage{a=5}），直接放行，绝对不改它的伤害！
+        if (isMythicSkill) {
+            return;
+        }
         Player player = (Player) event.getDamager();
+        // 4. 【蓄力连点拦截系统】
         float attackStrength = player.getCooledAttackStrength(0.0F);
-        // 如果蓄力低于 0.9 (即 90% 蓄力，留一点容错率防延迟)
-        if (attackStrength < 0.9F) {
+        if (attackStrength < 0.8F) {
+            // 如果玩家在瞎按连点，直接把整个攻击事件扬了。
+            // 效果：打不出伤害，MM 的 ~onAttack 也不会触发，必须等武器抬起！
             event.setCancelled(true);
             return;
         }
+
+        event.setDamage(0.0);
+    }
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onEntityDamage(EntityDamageByEntityEvent event) {
+
         Entity attacker = event.getDamager();
         Entity victim = event.getEntity();
         String attackSin = getAttackSin(attacker);
@@ -51,10 +82,8 @@ public class DamageCalculator implements Listener {
         int slashFragility = getEntityFragility(victim, "slash_fragility");
         int pierceFragility = getEntityFragility(victim, "pierce_fragility");
         int bluntFragility = getEntityFragility(victim, "blunt_fragility");
-
         // 基础易损倍率：1.0
         double fragilityMultiplier = 1.0;
-
         // 通用乘区：纯易损 (每层 +10%)
         if (pureFragility > 0) {
             fragilityMultiplier += (pureFragility * 0.1);
@@ -85,8 +114,11 @@ public class DamageCalculator implements Listener {
             MythicDamageListener.playCriticalFeedback(victim);
         }
         // 5. 飘字与应用伤害
+
         Location targetLocation = victim.getLocation();
-        DamageIndicatorUtil.spawnIndicator(targetLocation, finalDamage, isCrit);
+        if (finalDamage!=0.0){
+            DamageIndicatorUtil.spawnIndicator(targetLocation, finalDamage, isCrit);
+        }
         event.setDamage(finalDamage);
 
         // 打印详细日志方便测试数值计算是否正确
