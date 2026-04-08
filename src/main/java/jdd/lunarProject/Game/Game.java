@@ -54,6 +54,9 @@ public class Game {
         all.addAll(deadPlayers);
         return all;
     }
+    public RoundManager getRoundManager() {
+        return roundManager;
+    }
 
     // ================== 核心状态机 ==================
     public void setGameState(GameState newState) {

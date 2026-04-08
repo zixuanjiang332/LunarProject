@@ -61,9 +61,8 @@ public class DamageCalculator implements Listener {
 
         event.setDamage(0.0);
     }
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onEntityDamage(EntityDamageByEntityEvent event) {
-
         Entity attacker = event.getDamager();
         Entity victim = event.getEntity();
         String attackSin = getAttackSin(attacker);
@@ -74,7 +73,6 @@ public class DamageCalculator implements Listener {
         double typeRes = getEntityResistance(victim, attackType);
         sinRes = Math.max(0.5, Math.min(2.0, sinRes));
         typeRes = Math.max(0.5, Math.min(2.0, typeRes));
-
         // ==========================================
         // 【新增】2. 读取受击者的所有易损层数
         // ==========================================
@@ -175,7 +173,7 @@ public class DamageCalculator implements Listener {
                 }
             }
         }
-        return "envy";
+        return "none";
     }
 
     private String getAttackType(Entity attacker) {
@@ -193,7 +191,7 @@ public class DamageCalculator implements Listener {
                 }
             }
         }
-        return "blunt";
+        return "none";
     }
     public void initIfMissing(Player player, String varName, String defaultValue) {
         AbstractEntity mmPlayer = BukkitAdapter.adapt(player);
