@@ -15,7 +15,6 @@ public class MapConfig {
         if (!file.exists()) LunarProject.getInstance().saveResource("map_data.yml", false);
         config = YamlConfiguration.loadConfiguration(file);
     }
-
     public static List<Double> getCenterLocation(String map) {
         return config.getDoubleList(map + ".center-location");
     }

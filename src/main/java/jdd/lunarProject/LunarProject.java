@@ -1,6 +1,9 @@
 package jdd.lunarProject;
 
+import jdd.lunarProject.Command.GameCommand;
+import jdd.lunarProject.Config.MapConfig;
 import jdd.lunarProject.Game.GameManager;
+import jdd.lunarProject.Game.StageManager;
 import jdd.lunarProject.MobsListener.*;
 import jdd.lunarProject.SkillManager.ItemSkillManager;
 import jdd.lunarProject.SkillManager.SkillCastManager;
@@ -23,15 +26,18 @@ public final class LunarProject extends JavaPlugin {
     public void onEnable() {
         SkillCastManager.initSkills();
         jdd.lunarProject.Weapon.WeaponRegistry.init();
-        // ... 下面是你原本的代码 ...
+        MapConfig.init();
+        StageManager.initDatabase();
         if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null) {
             new ProjectMoonExpansion().register();
         }
         ItemSkillManager itemSkillManager = new ItemSkillManager();
         new SinkingSpeedManager().runTaskTimer(this, 0, 10);
+        getCommand("game").setExecutor(new GameCommand());
         getServer().getPluginManager().registerEvents(new ItemUseListener(itemSkillManager), this);
         getServer().getPluginManager().registerEvents(new TestMobListener(), this);
         getServer().getPluginManager().registerEvents(new MythicDamageListener(), this);
+        getServer().getPluginManager().registerEvents(new GameMobDeathListener(), this);
         getServer().getPluginManager().registerEvents(new DamageCalculator(),this);
     }
 

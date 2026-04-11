@@ -190,6 +190,7 @@ public class Game {
             activePlayers.remove(uuid);
             deadPlayers.add(uuid);
             broadcast("§c☠ 玩家 " + player.getName() + " 在战斗中断开了连接！(算作阵亡)");
+            roundManager.checkReady();
             if (activePlayers.isEmpty()) setGameState(GameState.ENDED);
         }
     }
@@ -221,18 +222,18 @@ public class Game {
     }
 
     public void stop() {
-        for (UUID uuid : getAllPlayers()) {
-            Player p = Bukkit.getPlayer(uuid);
-            if (p != null && p.isOnline()) {
-                p.setGameMode(GameMode.SURVIVAL);
-                p.sendMessage("§e游戏已结束，您已离开房间。");
+        // 1. 先把所有人踢出去（传送回主城）
+        for (Player p : new ArrayList<>(getActiveOnlinePlayers())) playerLeave(p);
+        for (Player p : new ArrayList<>(getDeadOnlinePlayers())) playerLeave(p);
+        // 2. 稍微等个半秒，让 Bukkit 缓一下再删地图
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                roundManager.cleanUp();
+                lobbyMap.unload();
+                GameManager.removeGame(gameId);
             }
-            GameManager.setPlayerGame(uuid, null);
-        }
-
-        roundManager.cleanUp();
-        lobbyMap.unload();
-        GameManager.removeGame(this.gameId);
+        }.runTaskLater(LunarProject.getInstance(), 10L);
     }
 
     // 辅助方法：获取当前在线的存活玩家

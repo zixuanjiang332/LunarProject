@@ -67,69 +67,98 @@ public class DamageCalculator implements Listener {
         Entity victim = event.getEntity();
         String attackSin = getAttackSin(attacker);
         String attackType = getAttackType(attacker);
+
+        // 如果缺少攻击标签则直接放行 (在你的设定中默认是"none")
         if (attackSin == null || attackType == null) return;
-        // 1. 获取基础抗性乘区
+
+        // ==========================================
+        // 1. 获取原始抗性与混乱 (Stagger) 覆写
+        // ==========================================
         double sinRes = getEntityResistance(victim, attackSin);
         double typeRes = getEntityResistance(victim, attackType);
         sinRes = Math.max(0.5, Math.min(2.0, sinRes));
         typeRes = Math.max(0.5, Math.min(2.0, typeRes));
+
+        int staggerStage = getStaggerStage(victim);
+        if (staggerStage == 1) {
+            // T1混乱：抗性强制拔高至 1.5
+            sinRes = Math.max(sinRes, 1.5);
+            typeRes = Math.max(typeRes, 1.5);
+        } else if (staggerStage == 2) {
+            // T2混乱：抗性强制拔高至 2.0
+            sinRes = Math.max(sinRes, 2.0);
+            typeRes = Math.max(typeRes, 2.0);
+        }
+
         // ==========================================
-        // 【新增】2. 读取受击者的所有易损层数
+        // 2. 【核心重构：加算抗性乘区】
+        // ==========================================
+        // 公式：1 + (罪孽抗性 - 1) + (物理抗性 - 1)
+        double resMultiplier = 1.0 + (sinRes - 1.0) + (typeRes - 1.0);
+        // 【防穿透兜底】：如果怪物拥有双重极致抗性 (例如双 0.5)，1-0.5-0.5 会算出 0，导致伤害归零甚至回血。
+        // 所以我们加一个下限保底，即便再肉，也能打出 10% (0.1) 的强制伤害。
+        resMultiplier = Math.max(0.1, resMultiplier);
+
+        // ==========================================
+        // 3. 【核心重构：动态获取易损层数】
         // ==========================================
         int pureFragility = getEntityFragility(victim, "pure_fragility");
-        int slashFragility = getEntityFragility(victim, "slash_fragility");
-        int pierceFragility = getEntityFragility(victim, "pierce_fragility");
-        int bluntFragility = getEntityFragility(victim, "blunt_fragility");
-        // 基础易损倍率：1.0
-        double fragilityMultiplier = 1.0;
-        // 通用乘区：纯易损 (每层 +10%)
-        if (pureFragility > 0) {
-            fragilityMultiplier += (pureFragility * 0.1);
-        }
 
-        // 专属乘区：根据本次攻击属性加算易损
-        switch (attackType) {
-            case "slash":
-                if (slashFragility > 0) fragilityMultiplier += (slashFragility * 0.1);
-                break;
-            case "pierce":
-                if (pierceFragility > 0) fragilityMultiplier += (pierceFragility * 0.1);
-                break;
-            case "blunt":
-                if (bluntFragility > 0) fragilityMultiplier += (bluntFragility * 0.1);
-                break;
-        }
+        // 动态拼接法：如果 attackType 是 "slash"，这里自动查询 "slash_fragility"
+        // 哪怕 attackType 是 "none"，它也会查 "none_fragility"，查不到自然返回 0，极其安全！
+        int typeFragility = getEntityFragility(victim, attackType + "_fragility");
+        int sinFragility = getEntityFragility(victim, attackSin + "_fragility");
 
-        // 3. 计算综合最终伤害
-        // 公式：基础伤害 * 罪孽抗性 * 物理抗性 * 易损倍率
+        // 公式：1 + (纯粹易损*10%) + (对应物理易损*10%) + (对应罪孽易损*10%)
+        double fragilityMultiplier = 1.0 + (pureFragility * 0.1) + (typeFragility * 0.1) + (sinFragility * 0.1);
+
+        // ==========================================
+        // 4. 计算综合最终伤害
+        // ==========================================
         double baseDamage = event.getDamage();
-        double finalDamage = baseDamage * sinRes * typeRes * fragilityMultiplier;
+        double finalDamage = baseDamage * resMultiplier * fragilityMultiplier;
 
-        // 4. 暴击计算 (暴击独立于各种抗性和易损进行最终翻倍)
+        // 5. 暴击计算 (暴击独立于抗性，属于最终翻倍乘区)
         boolean isCrit = ThreadLocalRandom.current().nextDouble() < CRIT_CHANCE;
         if (isCrit) {
             finalDamage *= CRIT_DAMAGE_MULTIPLIER;
             MythicDamageListener.playCriticalFeedback(victim);
         }
-        // 5. 飘字与应用伤害
-
+        // 6. 飘字与应用伤害
         Location targetLocation = victim.getLocation();
-        if (finalDamage!=0.0){
+        if (finalDamage != 0.0) {
             DamageIndicatorUtil.spawnIndicator(targetLocation, finalDamage, isCrit);
+        }
+
+        // 怪物伤害千倍放大机制
+        if (!(attacker instanceof Player)) {
+            finalDamage *= 1000.0;
         }
         event.setDamage(finalDamage);
 
-        // 打印详细日志方便测试数值计算是否正确
+        // 7. 测试用日志输出
         Bukkit.getLogger().severe(
-                "原伤害:" + baseDamage +
-                        " 罪孽乘区:" + sinRes +
-                        " 物理乘区:" + typeRes +
-                        " 易损倍率:" + fragilityMultiplier +
-                        " 暴击:" + isCrit +
-                        " 最终伤害:" + finalDamage
+                "原伤:" + baseDamage +
+                        " | 抗性修正乘数:" + String.format("%.2f", resMultiplier) +
+                        " (罪:" + sinRes + " 物:" + typeRes + ")" +
+                        " | 易损倍率:" + String.format("%.2f", fragilityMultiplier) +
+                        " (纯:" + pureFragility + " 类:" + typeFragility + " 罪:" + sinFragility + ")" +
+                        " | 终伤:" + String.format("%.2f", finalDamage)
         );
     }
-
+    private int getStaggerStage(Entity entity) {
+        if (entity instanceof Player player) {
+            var variables = MythicBukkit.inst().getPlayerManager().getProfile(player).getVariables();
+            return variables.has("stagger_stage") ? variables.getInt("stagger_stage") : 0;
+        } else {
+            var activeMob = MythicBukkit.inst().getMobManager().getActiveMob(entity.getUniqueId());
+            if (activeMob.isPresent()) {
+                var variables = activeMob.get().getVariables();
+                return variables.has("stagger_stage") ? variables.getInt("stagger_stage") : 0;
+            }
+        }
+        return 0;
+    }
     private int getEntityFragility(Entity entity, String varName) {
         if (entity instanceof Player player) {
             var variables = MythicBukkit.inst().getPlayerManager().getProfile(player).getVariables();

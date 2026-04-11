@@ -19,12 +19,6 @@ public class MythicDamageListener implements Listener {
     private final DamageIndicatorUtil indicatorUtil = new DamageIndicatorUtil();
     public static final double CRIT_CHANCE = 0.00; // 20% 暴击率
     public static final double CRIT_DAMAGE_MULTIPLIER = 2.0;
-    @EventHandler(priority = EventPriority.HIGHEST)
-    public void onMythicDamage(MythicDamageEvent event) {
-        double baseDamage = event.getDamage();
-        double finalDamage = baseDamage * 1000;
-        event.getDamageMetadata().setAmount(finalDamage);
-    }
     public static void playCriticalFeedback(Entity target) {
         if (target == null) return;
         target.getWorld().spawnParticle(

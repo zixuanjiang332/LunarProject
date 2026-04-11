@@ -1,0 +1,16 @@
+database:
+  host: "127.0.0.1"
+  port: 3306
+  database: "lunarproject"
+  username: "root"
+  password: "1054874739"
+stagger-thresholds:
+  Warrior:
+    t1: 0.50
+    t2: 0.00
+  Mage:
+    t1: 0.74
+    t2: 0.30
+  Assassin:
+    t1: 0.60
+    t2: 0.20

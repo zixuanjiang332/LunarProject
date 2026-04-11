@@ -101,9 +101,33 @@ public class GameCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage("§c控制台请使用: /game stop <id>");
                 }
                 break;
+            case "vote":
+                if (!(sender instanceof Player pVote)) return true;
+                if (args.length < 2) {
+                    sender.sendMessage("§c用法: /game vote <1/2/3>");
+                    return true;
+                }
+                Game voteGame = GameManager.getPlayerGame(pVote.getUniqueId());
+                if (voteGame != null && voteGame.isRunning()) {
+                    try {
+                        int choice = Integer.parseInt(args[1]);
+                        voteGame.getRoundManager().castVote(pVote, choice);
+                    } catch (NumberFormatException e) {
+                        sender.sendMessage("§c请输入有效的数字编号！");
+                    }
+                } else {
+                    sender.sendMessage("§c你当前不在游戏中！");
+                }
+                break;
 
-            default:
-                sender.sendMessage("§c未知的子命令，请输入 /game 查看帮助。");
+            case "proceed":
+                if (!(sender instanceof Player pProceed)) return true;
+                Game proceedGame = GameManager.getPlayerGame(pProceed.getUniqueId());
+                if (proceedGame != null && proceedGame.isRunning()) {
+                    proceedGame.getRoundManager().setPlayerProceed(pProceed);
+                } else {
+                    sender.sendMessage("§c你当前不在游戏中！");
+                }
                 break;
         }
 
