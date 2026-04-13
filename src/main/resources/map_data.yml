@@ -1,8 +1,23 @@
 test-map:
   id: testmap
-  center-location: [0.10,79.10,0.10]
+  center-location: [0.10, 79.10, 0.10]
   spawners:
-    - [0.10,79.10,0.10]
-    - [10.10,79.10,0.10]
-    - [0.10,79.10,10.10]
-    - [20.10,79.10,20.10]
+    - [0.10, 79.10, 0.10]
+    - [10.10, 79.10, 0.10]
+    - [0.10, 79.10, 10.10]
+    - [20.10, 79.10, 20.10]
+event-map:
+  id: eventmap
+  center-location: [0.10, 79.10, 0.10]
+  spawners:
+    - [0.10, 79.10, 0.10]
+shop-map:
+  id: shopmap
+  center-location: [0.10, 79.10, 0.10]
+  spawners:
+    - [0.10, 79.10, 0.10]
+rest-map:
+  id: restmap
+  center-location: [0.10, 79.10, 0.10]
+  spawners:
+    - [0.10, 79.10, 0.10]

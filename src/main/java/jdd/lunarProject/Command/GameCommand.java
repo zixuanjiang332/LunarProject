@@ -1,6 +1,8 @@
 package jdd.lunarProject.Command;
+
 import jdd.lunarProject.Game.Game;
 import jdd.lunarProject.Game.GameManager;
+import jdd.lunarProject.LunarProject;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -11,142 +13,400 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class GameCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
-        if (!sender.hasPermission("lunarproject.admin")) {
-            sender.sendMessage("§c[LunarProject] 你没有权限执行此命令！");
-            return true;
-        }
-
         if (args.length == 0) {
-            sender.sendMessage("§8======= §c月亮计划(LunarProject) 游戏管理 §8=======");
-            sender.sendMessage("§7/game create §8- §f创建一局新游戏");
-            sender.sendMessage("§7/game join <id> §8- §f加入指定ID的游戏");
-            sender.sendMessage("§7/game start §8- §f开始你所在的游戏");
-            sender.sendMessage("§7/game stop [id] §8- §f结束你所在的游戏(或指定ID的游戏)");
+            if (sender instanceof Player player) {
+                LunarProject.getInstance().getGuiManager().openMainMenu(player);
+            } else {
+                sendHelp(sender);
+            }
             return true;
         }
 
-        String subCommand = args[0].toLowerCase();
-
+        String subCommand = args[0].toLowerCase(Locale.ROOT);
         switch (subCommand) {
-            case "create":
-                Game newGame = GameManager.createGame();
-                sender.sendMessage("§a[LunarProject] 成功创建游戏！游戏ID: §e" + newGame.getGameId());
-                sender.sendMessage("§7提示: 输入 /game join " + newGame.getGameId() + " 加入该游戏");
-                break;
-
-            case "join":
-                if (!(sender instanceof Player player)) {
-                    sender.sendMessage("§c只有玩家可以加入游戏！");
-                    return true;
-                }
-                if (args.length < 2) {
-                    sender.sendMessage("§c用法: /game join <id>");
-                    return true;
-                }
-                Game targetGame = GameManager.getGame(args[1]);
-                if (targetGame == null) {
-                    sender.sendMessage("§c[LunarProject] 找不到ID为 " + args[1] + " 的游戏！");
-                    return true;
-                }
-                Game current = GameManager.getPlayerGame(player.getUniqueId());
-                if (current != null) {
-                    sender.sendMessage("§c[LunarProject] 你已经在游戏 [" + current.getGameId() + "] 中了！请先退出或结束该游戏。");
-                    return true;
-                }
-                targetGame.playerJoin(player);
-                break;
-
-            case "start":
-                if (!(sender instanceof Player p1)) {
-                    sender.sendMessage("§c只有玩家可以执行此操作！");
-                    return true;
-                }
-                Game myGame = GameManager.getPlayerGame(p1.getUniqueId());
-                if (myGame == null) {
-                    sender.sendMessage("§c[LunarProject] 你当前不在任何游戏中！");
-                    return true;
-                }
-                if (myGame.isRunning()) {
-                    sender.sendMessage("§c[LunarProject] 这局游戏已经开始了！");
-                    return true;
-                }
-                myGame.start();
-                break;
-
-            case "stop":
-                if (args.length == 2) {
-                    // 强制结束指定ID的游戏
-                    String gameId = args[1];
-                    Game gameToStop = GameManager.getGame(gameId);
-                    if (gameToStop == null) {
-                        sender.sendMessage("§c[LunarProject] 找不到ID为 " + gameId + " 的游戏！");
-                        return true;
-                    }
-                    gameToStop.stop();
-                    sender.sendMessage("§a[LunarProject] 已强制结束游戏: " + gameId);
-                } else if (sender instanceof Player p2) {
-                    // 结束自己所在的游戏
-                    Game gameToStop = GameManager.getPlayerGame(p2.getUniqueId());
-                    if (gameToStop == null) {
-                        sender.sendMessage("§c[LunarProject] 你当前不在任何游戏中，或者请指定游戏ID: /game stop <id>");
-                        return true;
-                    }
-                    gameToStop.stop();
-                    sender.sendMessage("§a[LunarProject] 你所在的游戏已被强制结束。");
-                } else {
-                    sender.sendMessage("§c控制台请使用: /game stop <id>");
-                }
-                break;
-            case "vote":
-                if (!(sender instanceof Player pVote)) return true;
-                if (args.length < 2) {
-                    sender.sendMessage("§c用法: /game vote <1/2/3>");
-                    return true;
-                }
-                Game voteGame = GameManager.getPlayerGame(pVote.getUniqueId());
-                if (voteGame != null && voteGame.isRunning()) {
-                    try {
-                        int choice = Integer.parseInt(args[1]);
-                        voteGame.getRoundManager().castVote(pVote, choice);
-                    } catch (NumberFormatException e) {
-                        sender.sendMessage("§c请输入有效的数字编号！");
-                    }
-                } else {
-                    sender.sendMessage("§c你当前不在游戏中！");
-                }
-                break;
-
-            case "proceed":
-                if (!(sender instanceof Player pProceed)) return true;
-                Game proceedGame = GameManager.getPlayerGame(pProceed.getUniqueId());
-                if (proceedGame != null && proceedGame.isRunning()) {
-                    proceedGame.getRoundManager().setPlayerProceed(pProceed);
-                } else {
-                    sender.sendMessage("§c你当前不在游戏中！");
-                }
-                break;
+            case "menu" -> handleMenu(sender);
+            case "create" -> handleCreate(sender);
+            case "join" -> handleJoin(sender, args);
+            case "leave" -> handleLeave(sender);
+            case "start" -> handleStart(sender);
+            case "stop" -> handleStop(sender, args);
+            case "status" -> handleStatus(sender, args);
+            case "build" -> handleBuild(sender);
+            case "vote" -> handleVote(sender, args);
+            case "proceed" -> handleProceed(sender);
+            case "shop" -> handleShop(sender, args);
+            case "event" -> handleEvent(sender, args);
+            case "reward" -> handleReward(sender, args);
+            default -> sendHelp(sender);
         }
 
         return true;
     }
 
-    // 提供 Tab 补全，按 Tab 键自动提示指令和当前进行中的游戏ID
+    private void handleMenu(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("§cOnly players can open the GUI menu.");
+            return;
+        }
+        LunarProject.getInstance().getGuiManager().openMainMenu(player);
+    }
+
+    private void handleCreate(CommandSender sender) {
+        Game newGame = GameManager.createGame();
+        sender.sendMessage("§aCreated room §f" + newGame.getGameId());
+        sender.sendMessage("§7Join it with §f/game join " + newGame.getGameId());
+    }
+
+    private void handleJoin(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("§cOnly players can join rooms.");
+            return;
+        }
+
+        if (args.length < 2) {
+            sender.sendMessage("§cUsage: /game join <id>");
+            return;
+        }
+
+        if (GameManager.getPlayerGame(player.getUniqueId()) != null) {
+            sender.sendMessage("§cYou are already in a room.");
+            return;
+        }
+
+        Game targetGame = GameManager.getGame(args[1]);
+        if (targetGame == null) {
+            sender.sendMessage("§cRoom not found: " + args[1]);
+            return;
+        }
+
+        targetGame.playerJoin(player);
+    }
+
+    private void handleLeave(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("§cOnly players can leave rooms.");
+            return;
+        }
+
+        Game game = GameManager.getPlayerGame(player.getUniqueId());
+        if (game == null) {
+            sender.sendMessage("§cYou are not in a room.");
+            return;
+        }
+
+        game.playerLeave(player);
+    }
+
+    private void handleStart(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("§cOnly players can start a room.");
+            return;
+        }
+
+        Game game = GameManager.getPlayerGame(player.getUniqueId());
+        if (game == null) {
+            sender.sendMessage("§cYou are not in a room.");
+            return;
+        }
+
+        game.start();
+        sender.sendMessage("§aRequested room start.");
+    }
+
+    private void handleStop(CommandSender sender, String[] args) {
+        if (args.length >= 2) {
+            if (!canForceStop(sender)) {
+                sender.sendMessage("§cOnly admins can stop a specific room.");
+                return;
+            }
+
+            Game game = GameManager.getGame(args[1]);
+            if (game == null) {
+                sender.sendMessage("§cRoom not found: " + args[1]);
+                return;
+            }
+
+            game.stop();
+            sender.sendMessage("§aStopped room §f" + args[1]);
+            return;
+        }
+
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("§cConsole must use /game stop <id>.");
+            return;
+        }
+
+        Game game = GameManager.getPlayerGame(player.getUniqueId());
+        if (game == null) {
+            sender.sendMessage("§cYou are not in a room.");
+            return;
+        }
+
+        game.stop();
+        sender.sendMessage("§aStopped your current room.");
+    }
+
+    private void handleStatus(CommandSender sender, String[] args) {
+        Game game = resolveGameForStatus(sender, args);
+        if (game == null) {
+            return;
+        }
+
+        sender.sendMessage("§6===== LunarProject Status =====");
+        sender.sendMessage("§7Room ID: §f" + game.getGameId());
+        sender.sendMessage("§7State: §f" + game.getGameState());
+        sender.sendMessage("§7Players: §fAlive " + game.getActivePlayerCount() + " / Dead " + game.getDeadPlayerCount() + " / Total " + game.getTotalPlayerCount());
+        sender.sendMessage("§7Round: §f" + game.getRoundManager().getCurrentRound() + "/5");
+        sender.sendMessage("§7Phase: §f" + game.getRoundManager().getCurrentRoomType());
+        sender.sendMessage("§7Objective: §f" + game.getRoundManager().getStatusHint());
+
+        if (game.getRoundManager().isVotingPhase()) {
+            for (String line : game.getRoundManager().getVoteOptionDisplay()) {
+                sender.sendMessage(line);
+            }
+        }
+
+        if (sender instanceof Player player && GameManager.getPlayerGame(player.getUniqueId()) == game) {
+            if (game.getRoundManager().isRewardPhase()) {
+                sender.sendMessage("§6===== Pending Rewards =====");
+                for (String line : game.getRoundManager().getRewardOptionDisplay(player)) {
+                    sender.sendMessage(line);
+                }
+            }
+            sender.sendMessage("§6===== Your Build =====");
+            for (String line : game.getBuildSummary(player.getUniqueId())) {
+                sender.sendMessage("§7" + line);
+            }
+        }
+    }
+
+    private void handleBuild(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("§cOnly players can inspect a run build.");
+            return;
+        }
+
+        Game game = GameManager.getPlayerGame(player.getUniqueId());
+        if (game == null) {
+            sender.sendMessage("§cYou are not in an active room.");
+            return;
+        }
+
+        sender.sendMessage("§6===== Current Run Build =====");
+        for (String line : game.getBuildSummary(player.getUniqueId())) {
+            sender.sendMessage("§7" + line);
+        }
+    }
+
+    private void handleVote(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("§cOnly players can vote.");
+            return;
+        }
+
+        if (args.length < 2) {
+            sender.sendMessage("§cUsage: /game vote <number>");
+            return;
+        }
+
+        Game game = GameManager.getPlayerGame(player.getUniqueId());
+        if (game == null || !game.isRunning()) {
+            sender.sendMessage("§cYou are not in an active room.");
+            return;
+        }
+
+        try {
+            int choice = Integer.parseInt(args[1]);
+            game.getRoundManager().castVote(player, choice);
+        } catch (NumberFormatException exception) {
+            sender.sendMessage("§cPlease enter a valid node number.");
+        }
+    }
+
+    private void handleProceed(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("§cOnly players can proceed.");
+            return;
+        }
+
+        Game game = GameManager.getPlayerGame(player.getUniqueId());
+        if (game == null || !game.isRunning()) {
+            sender.sendMessage("§cYou are not in an active room.");
+            return;
+        }
+
+        game.getRoundManager().setPlayerProceed(player);
+    }
+
+    private void handleShop(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("§cOnly players can use the shop.");
+            return;
+        }
+
+        if (args.length < 3 || !"buy".equalsIgnoreCase(args[1])) {
+            sender.sendMessage("§cUsage: /game shop buy <offerId>");
+            return;
+        }
+
+        Game game = GameManager.getPlayerGame(player.getUniqueId());
+        if (game == null || !game.isRunning()) {
+            sender.sendMessage("§cYou are not in an active room.");
+            return;
+        }
+
+        game.getRoundManager().handleShopPurchase(player, args[2]);
+    }
+
+    private void handleEvent(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("§cOnly players can resolve events.");
+            return;
+        }
+
+        if (args.length < 3 || !"choose".equalsIgnoreCase(args[1])) {
+            sender.sendMessage("§cUsage: /game event choose <1|2>");
+            return;
+        }
+
+        Game game = GameManager.getPlayerGame(player.getUniqueId());
+        if (game == null || !game.isRunning()) {
+            sender.sendMessage("§cYou are not in an active room.");
+            return;
+        }
+
+        game.getRoundManager().handleEventChoice(player, args[2]);
+    }
+
+    private void handleReward(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("§cOnly players can claim rewards.");
+            return;
+        }
+
+        if (args.length < 3 || !"choose".equalsIgnoreCase(args[1])) {
+            sender.sendMessage("§cUsage: /game reward choose <1|2|3>");
+            return;
+        }
+
+        Game game = GameManager.getPlayerGame(player.getUniqueId());
+        if (game == null || !game.isRunning()) {
+            sender.sendMessage("§cYou are not in an active room.");
+            return;
+        }
+
+        try {
+            int choice = Integer.parseInt(args[2]);
+            game.getRoundManager().handleRewardChoice(player, choice);
+        } catch (NumberFormatException exception) {
+            sender.sendMessage("§cPlease choose a valid reward number.");
+        }
+    }
+
+    private Game resolveGameForStatus(CommandSender sender, String[] args) {
+        Game game = null;
+        if (args.length >= 2) {
+            game = GameManager.getGame(args[1]);
+        } else if (sender instanceof Player player) {
+            game = GameManager.getPlayerGame(player.getUniqueId());
+        }
+
+        if (game == null) {
+            if (!(sender instanceof Player) && !GameManager.getActiveGameIds().isEmpty()) {
+                sender.sendMessage("§eActive rooms: " + String.join(", ", GameManager.getActiveGameIds()));
+            } else {
+                sender.sendMessage("§cNo room status is available.");
+            }
+        }
+        return game;
+    }
+
+    private boolean canForceStop(CommandSender sender) {
+        return !(sender instanceof Player) || sender.hasPermission("lunarproject.admin");
+    }
+
+    private void sendHelp(CommandSender sender) {
+        sender.sendMessage("§6===== LunarProject Commands =====");
+        sender.sendMessage("§7/game create §8- Create a room");
+        sender.sendMessage("§7/game menu §8- Open the GUI menu");
+        sender.sendMessage("§7/game join <id> §8- Join a room");
+        sender.sendMessage("§7/game leave §8- Leave your room");
+        sender.sendMessage("§7/game start §8- Start your room");
+        sender.sendMessage("§7/game vote <n> §8- Vote for the next node");
+        sender.sendMessage("§7/game reward choose <n> §8- Claim a room reward");
+        sender.sendMessage("§7/game shop buy <id> §8- Claim a shop service");
+        sender.sendMessage("§7/game event choose <id> §8- Resolve an event");
+        sender.sendMessage("§7/game proceed §8- Confirm a peaceful room");
+        sender.sendMessage("§7/game build §8- Show your current run build");
+        sender.sendMessage("§7/game status [id] §8- Show room status");
+        sender.sendMessage("§7/game stop [id] §8- Stop a room");
+    }
+
     @Override
-    public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
+    public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
         List<String> completions = new ArrayList<>();
         if (args.length == 1) {
             completions.add("create");
+            completions.add("menu");
             completions.add("join");
+            completions.add("leave");
             completions.add("start");
             completions.add("stop");
-        } else if (args.length == 2 && (args[0].equalsIgnoreCase("join") || args[0].equalsIgnoreCase("stop"))) {
-            // 目前没有写暴露 activeGames 的 public 方法，这里暂且不补全ID
-            // 如果你想让 Tab 能补全在线的游戏ID，可以在 GameManager 里加一个 getActiveGameIds() 方法
+            completions.add("status");
+            completions.add("build");
+            completions.add("vote");
+            completions.add("reward");
+            completions.add("proceed");
+            completions.add("shop");
+            completions.add("event");
+            return completions;
         }
+
+        if (args.length == 2 && ("join".equalsIgnoreCase(args[0]) || "stop".equalsIgnoreCase(args[0]) || "status".equalsIgnoreCase(args[0]))) {
+            completions.addAll(GameManager.getActiveGameIds());
+            return completions;
+        }
+
+        if (args.length == 2 && "shop".equalsIgnoreCase(args[0])) {
+            completions.add("buy");
+            return completions;
+        }
+
+        if (args.length == 3 && "shop".equalsIgnoreCase(args[0]) && "buy".equalsIgnoreCase(args[1])) {
+            completions.add("field_medicine");
+            completions.add("clear_mind");
+            completions.add("assault_stim");
+            completions.add("safety_harness");
+            return completions;
+        }
+
+        if (args.length == 2 && "event".equalsIgnoreCase(args[0])) {
+            completions.add("choose");
+            return completions;
+        }
+
+        if (args.length == 3 && "event".equalsIgnoreCase(args[0]) && "choose".equalsIgnoreCase(args[1])) {
+            completions.add("1");
+            completions.add("2");
+            return completions;
+        }
+
+        if (args.length == 2 && "reward".equalsIgnoreCase(args[0])) {
+            completions.add("choose");
+            return completions;
+        }
+
+        if (args.length == 3 && "reward".equalsIgnoreCase(args[0]) && "choose".equalsIgnoreCase(args[1])) {
+            completions.add("1");
+            completions.add("2");
+            completions.add("3");
+        }
+
         return completions;
     }
 }

@@ -111,3 +111,14 @@ buildNumber.properties
 
 # Common working directory
 run/
+
+# Local Paper server runtime
+src/Lunar1.21.8-beta/**
+!src/Lunar1.21.8-beta/plugins/
+src/Lunar1.21.8-beta/plugins/**
+!src/Lunar1.21.8-beta/plugins/MythicMobs/
+src/Lunar1.21.8-beta/plugins/MythicMobs/**
+!src/Lunar1.21.8-beta/plugins/MythicMobs/skills/
+src/Lunar1.21.8-beta/plugins/MythicMobs/skills/**
+!src/Lunar1.21.8-beta/plugins/MythicMobs/skills/Bleeddots.yml
+!src/Lunar1.21.8-beta/plugins/MythicMobs/skills/Poisedots.yml

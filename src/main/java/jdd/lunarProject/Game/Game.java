@@ -1,217 +1,218 @@
 package jdd.lunarProject.Game;
+
+import io.lumine.mythic.bukkit.MythicBukkit;
+import jdd.lunarProject.Build.BuildModifierType;
+import jdd.lunarProject.Build.PlayerRunData;
+import jdd.lunarProject.Build.RelicDefinition;
+import jdd.lunarProject.Build.RelicManager;
 import jdd.lunarProject.LunarProject;
+import jdd.lunarProject.Tool.YellowBarUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.World;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public class Game {
     private final String gameId;
-    private final List<UUID> activePlayers; // 存活玩家 (使用 UUID 防断网报错)
-    private final List<UUID> deadPlayers;   // 阵亡玩家
+    private final Set<UUID> activePlayers;
+    private final Set<UUID> deadPlayers;
+    private final Map<UUID, PlayerRunData> playerRunData;
     private final LobbyMap lobbyMap;
     private final RoundManager roundManager;
 
-    public static final int MIN_PLAYERS = 3;
-    public static final int MAX_PLAYERS = 6;
     private GameState gameState;
-
     private BukkitTask countdownTask;
     private int countdownTime;
 
     public Game() {
         this.gameId = UUID.randomUUID().toString().substring(0, 8);
-        this.activePlayers = new ArrayList<>();
-        this.deadPlayers = new ArrayList<>();
+        this.activePlayers = new LinkedHashSet<>();
+        this.deadPlayers = new LinkedHashSet<>();
+        this.playerRunData = new HashMap<>();
         this.lobbyMap = new LobbyMap(this.gameId);
         this.lobbyMap.load();
         this.roundManager = new RoundManager(this);
         setGameState(GameState.WAITING);
     }
 
-    // ================== 房间内专属防串频广播 ==================
     public void broadcast(String message) {
-        for (UUID uuid : getAllPlayers()) {
-            Player p = Bukkit.getPlayer(uuid);
-            if (p != null && p.isOnline()) p.sendMessage(message);
+        for (UUID uuid : getAllPlayerIds()) {
+            Player player = Bukkit.getPlayer(uuid);
+            if (player != null && player.isOnline()) {
+                player.sendMessage(message);
+            }
         }
     }
 
     public void sendTitle(String title, String subtitle) {
-        for (UUID uuid : getAllPlayers()) {
-            Player p = Bukkit.getPlayer(uuid);
-            if (p != null && p.isOnline()) p.sendTitle(title, subtitle, 10, 40, 10);
+        for (UUID uuid : getAllPlayerIds()) {
+            Player player = Bukkit.getPlayer(uuid);
+            if (player != null && player.isOnline()) {
+                player.sendTitle(title, subtitle, 10, 40, 10);
+            }
         }
     }
 
-    private List<UUID> getAllPlayers() {
-        List<UUID> all = new ArrayList<>(activePlayers);
-        all.addAll(deadPlayers);
-        return all;
-    }
     public RoundManager getRoundManager() {
         return roundManager;
     }
 
-    // ================== 核心状态机 ==================
     public void setGameState(GameState newState) {
-        this.gameState = newState;
-
-        if (countdownTask != null) {
-            countdownTask.cancel();
-            countdownTask = null;
-        }
+        gameState = newState;
+        cancelCountdown();
 
         switch (newState) {
-            case WAITING:
-                broadcast("§e等待玩家加入... (" + activePlayers.size() + "/" + MIN_PLAYERS + ")");
-                break;
-
-            case STARTING:
-                this.countdownTime = 60;
-                broadcast("§a人数已达标，游戏准备开始！");
-                this.countdownTask = new BukkitRunnable() {
-                    @Override
-                    public void run() {
-                        if (countdownTime <= 0) {
-                            setGameState(GameState.STARTED);
-                            this.cancel();
-                            return;
-                        }
-                        if (countdownTime % 10 == 0 || countdownTime <= 5) {
-                            broadcast("§e游戏将在 §c" + countdownTime + " §e秒后开始...");
-                            if (countdownTime <= 5) sendTitle("§c" + countdownTime, "§e准备战斗");
-                        }
-                        countdownTime--;
-                    }
-                }.runTaskTimer(LunarProject.getInstance(), 0L, 20L);
-                break;
-
-            case STARTED:
-                sendTitle("§4游戏开始", "§c深渊正在凝视你...");
-                roundManager.loadNextStage("test-map");
-                break;
-
-            case ENDED:
-                this.countdownTime = 5;
-                sendTitle("§8游戏结束", "§7正在清理战场...");
-                this.countdownTask = new BukkitRunnable() {
-                    @Override
-                    public void run() {
-                        if (countdownTime <= 0) {
-                            stop();
-                            this.cancel();
-                            return;
-                        }
-                        broadcast("§c房间将在 " + countdownTime + " 秒后解散...");
-                        countdownTime--;
-                    }
-                }.runTaskTimer(LunarProject.getInstance(), 0L, 20L);
-                break;
+            case WAITING -> broadcast("§eWaiting for players... (" + activePlayers.size() + "/" + getMinPlayers() + ")");
+            case STARTING -> beginStartingCountdown();
+            case STARTED -> {
+                sendTitle("§4Run Start", "§cThe route unfolds ahead");
+                roundManager.generateNextNodeChoices();
+            }
+            case ENDED -> beginEndCountdown();
         }
     }
 
-    // ================== 玩家行为逻辑 ==================
     public boolean playerJoin(Player player) {
         if (gameState == GameState.STARTED || gameState == GameState.ENDED) {
-            player.sendMessage("§c游戏已开始或结束，无法加入！");
-            return false;
-        }
-        if (activePlayers.size() >= MAX_PLAYERS) {
-            player.sendMessage("§c房间已满！");
+            player.sendMessage("§cThis room is already in progress or ended.");
             return false;
         }
 
-        if (!activePlayers.contains(player.getUniqueId())) {
-            activePlayers.add(player.getUniqueId());
-            GameManager.setPlayerGame(player.getUniqueId(), this);
-
-            if (lobbyMap.getSpawnLocation() != null) {
-                player.teleport(lobbyMap.getSpawnLocation());
-            }
-            broadcast("§a" + player.getName() + " 加入了游戏！ (" + activePlayers.size() + "/" + MAX_PLAYERS + ")");
-
-            if (gameState == GameState.WAITING && activePlayers.size() >= MIN_PLAYERS) {
-                setGameState(GameState.STARTING);
-            }
-            return true;
+        if (activePlayers.size() >= getMaxPlayers()) {
+            player.sendMessage("§cThis room is full.");
+            return false;
         }
-        return false;
+
+        UUID uuid = player.getUniqueId();
+        if (activePlayers.contains(uuid) || deadPlayers.contains(uuid)) {
+            player.sendMessage("§eYou are already in this room.");
+            return false;
+        }
+
+        activePlayers.add(uuid);
+        getOrCreateRunData(uuid);
+        GameManager.setPlayerGame(uuid, this);
+        player.setGameMode(GameMode.SURVIVAL);
+        LunarProject.getInstance().getGuiManager().ensureMenuItem(player);
+
+        Location spawn = lobbyMap.getSpawnLocation();
+        if (spawn != null) {
+            player.teleport(spawn);
+        }
+
+        broadcast("§a" + player.getName() + " joined the room. (" + activePlayers.size() + "/" + getMaxPlayers() + ")");
+        LunarProject.getInstance().getGuiManager().refreshGame(this);
+        if (gameState == GameState.WAITING && activePlayers.size() >= getMinPlayers()) {
+            setGameState(GameState.STARTING);
+        }
+        return true;
     }
 
-    // 玩家主动退出游戏
     public void playerLeave(Player player) {
         UUID uuid = player.getUniqueId();
-        activePlayers.remove(uuid);
-        deadPlayers.remove(uuid);
+        boolean wasActive = activePlayers.remove(uuid);
+        boolean wasDead = deadPlayers.remove(uuid);
+        if (!wasActive && !wasDead) {
+            player.sendMessage("§cYou are not in a LunarProject room.");
+            return;
+        }
+
         GameManager.setPlayerGame(uuid, null);
+        playerRunData.remove(uuid);
+        resetPlayerState(player);
+        player.sendMessage("§eYou left the current room.");
 
-        player.setGameMode(GameMode.SURVIVAL);
-        player.sendMessage("§e你已退出游戏。");
-        broadcast("§c" + player.getName() + " 退出了游戏！");
+        if (gameState == GameState.WAITING || gameState == GameState.STARTING) {
+            broadcast("§c" + player.getName() + " left the room.");
+            LunarProject.getInstance().getGuiManager().refreshGame(this);
+            checkPlayerCount();
+            return;
+        }
 
-        checkPlayerCount();
-    }
-
-    // 局内死亡逻辑
-    public void onPlayerDeath(Player player) {
-        UUID uuid = player.getUniqueId();
-        if (activePlayers.contains(uuid)) {
-            activePlayers.remove(uuid);
-            deadPlayers.add(uuid); // 记录不清空，转入死亡名单
-
-            player.setGameMode(GameMode.SPECTATOR);
-            broadcast("§c☠ 玩家 " + player.getName() + " 已阵亡！");
-
-            if (activePlayers.isEmpty()) {
-                broadcast("§4队伍已全军覆没...");
-                setGameState(GameState.ENDED);
+        if (gameState == GameState.STARTED) {
+            broadcast("§c" + player.getName() + " left the current run.");
+            LunarProject.getInstance().getGuiManager().refreshGame(this);
+            checkPlayerCount();
+            if (!activePlayers.isEmpty()) {
+                roundManager.checkVote();
+                roundManager.checkProceed();
+                roundManager.checkRewardResolution();
             }
         }
     }
 
-    // ================== 断网与重连处理 ==================
+    public void onPlayerDeath(Player player) {
+        UUID uuid = player.getUniqueId();
+        if (!activePlayers.remove(uuid)) {
+            return;
+        }
+
+        deadPlayers.add(uuid);
+        player.setGameMode(GameMode.SPECTATOR);
+        broadcast("§cPlayer " + player.getName() + " has fallen.");
+        LunarProject.getInstance().getGuiManager().refreshGame(this);
+
+        if (activePlayers.isEmpty()) {
+            broadcast("§4All active players are down. The run has failed.");
+            setGameState(GameState.ENDED);
+        }
+    }
+
     public void handleDisconnect(Player player) {
         UUID uuid = player.getUniqueId();
-        // 如果游戏还没开始，断网直接算作退出
+
         if (gameState == GameState.WAITING || gameState == GameState.STARTING) {
-            activePlayers.remove(uuid);
-            GameManager.setPlayerGame(uuid, null);
-            broadcast("§c" + player.getName() + " 在准备阶段断开了连接。");
-            checkPlayerCount();
+            if (activePlayers.remove(uuid) || deadPlayers.remove(uuid)) {
+                GameManager.setPlayerGame(uuid, null);
+                playerRunData.remove(uuid);
+                broadcast("§c" + player.getName() + " disconnected during preparation.");
+                LunarProject.getInstance().getGuiManager().refreshGame(this);
+                checkPlayerCount();
+            }
+            return;
         }
-        // 游戏进行中断网，直接判定死亡，保留数据！
-        else if (gameState == GameState.STARTED && activePlayers.contains(uuid)) {
-            activePlayers.remove(uuid);
+
+        if (gameState == GameState.STARTED && activePlayers.remove(uuid)) {
             deadPlayers.add(uuid);
-            broadcast("§c☠ 玩家 " + player.getName() + " 在战斗中断开了连接！(算作阵亡)");
-            roundManager.checkReady();
-            if (activePlayers.isEmpty()) setGameState(GameState.ENDED);
+            broadcast("§c" + player.getName() + " disconnected during the run and is treated as defeated.");
+            LunarProject.getInstance().getGuiManager().refreshGame(this);
+            if (activePlayers.isEmpty()) {
+                setGameState(GameState.ENDED);
+                return;
+            }
+            roundManager.checkVote();
+            roundManager.checkProceed();
+            roundManager.checkRewardResolution();
         }
     }
 
     public void handleReconnect(Player player) {
         UUID uuid = player.getUniqueId();
         if (deadPlayers.contains(uuid)) {
-            player.sendMessage("§c你之前在游戏中阵亡（或断线）。已进入旁观模式。");
             player.setGameMode(GameMode.SPECTATOR);
-            player.teleport(roundManager.getCurrentStage().getBossLocation());
-        } else if (activePlayers.contains(uuid)) {
-            player.teleport(roundManager.getCurrentStage().getBossLocation());
-            player.sendMessage("§a欢迎重连！");
+            player.teleport(getCurrentAnchorLocation());
+            LunarProject.getInstance().getGuiManager().ensureMenuItem(player);
+            player.sendMessage("§eYou reconnected as a spectator for this run.");
+            return;
         }
-    }
 
-    private void checkPlayerCount() {
-        if (gameState == GameState.STARTING && activePlayers.size() < MIN_PLAYERS) {
-            setGameState(GameState.WAITING);
-        } else if (gameState == GameState.STARTED && activePlayers.isEmpty()) {
-            setGameState(GameState.ENDED);
+        if (activePlayers.contains(uuid)) {
+            player.setGameMode(GameMode.SURVIVAL);
+            player.teleport(getCurrentAnchorLocation());
+            LunarProject.getInstance().getGuiManager().ensureMenuItem(player);
+            player.sendMessage("§aYou rejoined the current room.");
         }
     }
 
@@ -222,10 +223,22 @@ public class Game {
     }
 
     public void stop() {
-        // 1. 先把所有人踢出去（传送回主城）
-        for (Player p : new ArrayList<>(getActiveOnlinePlayers())) playerLeave(p);
-        for (Player p : new ArrayList<>(getDeadOnlinePlayers())) playerLeave(p);
-        // 2. 稍微等个半秒，让 Bukkit 缓一下再删地图
+        cancelCountdown();
+        for (Player player : new ArrayList<>(getActiveOnlinePlayers())) {
+            resetPlayerState(player);
+        }
+        for (Player player : new ArrayList<>(getDeadOnlinePlayers())) {
+            resetPlayerState(player);
+        }
+
+        for (UUID uuid : getAllPlayerIds()) {
+            GameManager.setPlayerGame(uuid, null);
+        }
+
+        activePlayers.clear();
+        deadPlayers.clear();
+        playerRunData.clear();
+
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -236,33 +249,316 @@ public class Game {
         }.runTaskLater(LunarProject.getInstance(), 10L);
     }
 
-    // 辅助方法：获取当前在线的存活玩家
-    public List<Player> getActiveOnlinePlayers() {
-        List<Player> online = new ArrayList<>();
-        for (UUID id : activePlayers) {
-            Player p = Bukkit.getPlayer(id);
-            if (p != null && p.isOnline()) online.add(p);
+    public void shutdownImmediately() {
+        cancelCountdown();
+        for (Player player : new ArrayList<>(getActiveOnlinePlayers())) {
+            resetPlayerState(player);
         }
-        return online;
-    }
-    public List<Player> getDeadOnlinePlayers() {
-        List<Player> online = new ArrayList<>();
-        for (UUID id : deadPlayers) {
-            Player p = Bukkit.getPlayer(id);
-            if (p != null && p.isOnline()) online.add(p);
+        for (Player player : new ArrayList<>(getDeadOnlinePlayers())) {
+            resetPlayerState(player);
         }
-        return online;
-    }
-    public GameState getGameState() { return gameState; }
-    public String getGameId() { return gameId; }
 
-    public LobbyMap getLobbyMap() { return lobbyMap; }
-    public boolean isRunning() {
-        if (gameState.equals(GameState.STARTED)){
-            return true;
+        for (UUID uuid : getAllPlayerIds()) {
+            GameManager.setPlayerGame(uuid, null);
         }
-        else {
+
+        activePlayers.clear();
+        deadPlayers.clear();
+        playerRunData.clear();
+        roundManager.cleanUp();
+        lobbyMap.unload();
+        GameManager.removeGame(gameId);
+    }
+
+    public List<Player> getActiveOnlinePlayers() {
+        return getOnlinePlayers(activePlayers);
+    }
+
+    public List<Player> getDeadOnlinePlayers() {
+        return getOnlinePlayers(deadPlayers);
+    }
+
+    public boolean isRunning() {
+        return gameState == GameState.STARTED;
+    }
+
+    public GameState getGameState() {
+        return gameState;
+    }
+
+    public String getGameId() {
+        return gameId;
+    }
+
+    public LobbyMap getLobbyMap() {
+        return lobbyMap;
+    }
+
+    public int getActivePlayerCount() {
+        return activePlayers.size();
+    }
+
+    public int getDeadPlayerCount() {
+        return deadPlayers.size();
+    }
+
+    public int getTotalPlayerCount() {
+        return activePlayers.size() + deadPlayers.size();
+    }
+
+    public boolean isActivePlayer(Player player) {
+        return activePlayers.contains(player.getUniqueId());
+    }
+
+    public PlayerRunData getOrCreateRunData(UUID uuid) {
+        return playerRunData.computeIfAbsent(uuid, ignored -> new PlayerRunData());
+    }
+
+    public boolean hasRelic(UUID uuid, String relicId) {
+        PlayerRunData runData = playerRunData.get(uuid);
+        return runData != null && runData.getRelicIds().contains(relicId);
+    }
+
+    public boolean addRelic(UUID uuid, String relicId) {
+        if (!RelicManager.hasRelic(relicId)) {
             return false;
         }
+
+        PlayerRunData runData = getOrCreateRunData(uuid);
+        if (runData.getRelicIds().contains(relicId)) {
+            return false;
+        }
+
+        runData.getRelicIds().add(relicId);
+        runData.incrementRewardCount();
+        return true;
+    }
+
+    public void addTemporaryModifier(UUID uuid, BuildModifierType modifierType, double amount, String sourceName) {
+        PlayerRunData runData = getOrCreateRunData(uuid);
+        runData.getTemporaryModifiers().merge(modifierType, amount, Double::sum);
+        runData.incrementRewardCount();
+        runData.getRewardHistory().add(sourceName + " (" + modifierType + " " + formatSignedValue(amount) + ")");
+    }
+
+    public void recordReward(UUID uuid, String rewardEntry) {
+        getOrCreateRunData(uuid).getRewardHistory().add(rewardEntry);
+    }
+
+    public double getModifier(UUID uuid, BuildModifierType modifierType) {
+        PlayerRunData runData = playerRunData.get(uuid);
+        if (runData == null) {
+            return 0.0;
+        }
+
+        double total = runData.getTemporaryModifiers().getOrDefault(modifierType, 0.0);
+        for (String relicId : runData.getRelicIds()) {
+            RelicDefinition relicDefinition = RelicManager.getRelic(relicId);
+            if (relicDefinition != null && relicDefinition.effectType() == modifierType) {
+                total += relicDefinition.effectValue();
+            }
+        }
+        return total;
+    }
+
+    public int changePlayerSanity(Player player, int baseDelta) {
+        var variables = MythicBukkit.inst().getPlayerManager().getProfile(player).getVariables();
+        int delta = baseDelta;
+        if (delta > 0) {
+            delta += (int) Math.round(getModifier(player.getUniqueId(), BuildModifierType.SANITY_GAIN_BONUS));
+        }
+
+        int currentSanity = variables.has("sanity") ? variables.getInt("sanity") : 50;
+        int updatedSanity = Math.max(-45, Math.min(50, currentSanity + delta));
+        variables.putInt("sanity", updatedSanity);
+        return delta;
+    }
+
+    public void healPlayerToFull(Player player) {
+        if (player.getAttribute(Attribute.MAX_HEALTH) == null) {
+            return;
+        }
+        player.setHealth(player.getAttribute(Attribute.MAX_HEALTH).getValue());
+        YellowBarUtil.refill(player);
+    }
+
+    public void applyPostCombatRecovery(Player player, double baseHealRatio, int baseSanityGain) {
+        double totalHealRatio = Math.max(0.0, baseHealRatio + getModifier(player.getUniqueId(), BuildModifierType.POST_COMBAT_HEAL_BONUS));
+        if (player.getAttribute(Attribute.MAX_HEALTH) != null) {
+            double maxHealth = player.getAttribute(Attribute.MAX_HEALTH).getValue();
+            double nextHealth = Math.min(maxHealth, player.getHealth() + (maxHealth * totalHealRatio));
+            player.setHealth(Math.max(1.0, nextHealth));
+        }
+        YellowBarUtil.refill(player);
+        changePlayerSanity(player, baseSanityGain);
+    }
+
+    public List<String> getBuildSummary(UUID uuid) {
+        PlayerRunData runData = playerRunData.get(uuid);
+        List<String> lines = new ArrayList<>();
+        if (runData == null) {
+            lines.add("No run data.");
+            return lines;
+        }
+
+        lines.add("Rewards claimed: " + runData.getRewardCount());
+        if (runData.getRelicIds().isEmpty()) {
+            lines.add("Relics: none");
+        } else {
+            List<String> relicNames = new ArrayList<>();
+            for (String relicId : runData.getRelicIds()) {
+                RelicDefinition relicDefinition = RelicManager.getRelic(relicId);
+                relicNames.add(relicDefinition != null ? relicDefinition.name() : relicId);
+            }
+            lines.add("Relics: " + String.join(", ", relicNames));
+        }
+
+        if (runData.getTemporaryModifiers().isEmpty()) {
+            lines.add("Temporary bonuses: none");
+        } else {
+            List<String> tempLines = new ArrayList<>();
+            for (Map.Entry<BuildModifierType, Double> entry : runData.getTemporaryModifiers().entrySet()) {
+                tempLines.add(entry.getKey() + " " + formatSignedValue(entry.getValue()));
+            }
+            lines.add("Temporary bonuses: " + String.join(", ", tempLines));
+        }
+
+        if (runData.getRewardHistory().isEmpty()) {
+            lines.add("Reward history: none");
+        } else {
+            int fromIndex = Math.max(0, runData.getRewardHistory().size() - 5);
+            lines.add("Recent rewards: " + String.join(" | ", runData.getRewardHistory().subList(fromIndex, runData.getRewardHistory().size())));
+        }
+        return lines;
+    }
+
+    private List<Player> getOnlinePlayers(Set<UUID> uuids) {
+        List<Player> players = new ArrayList<>();
+        for (UUID uuid : uuids) {
+            Player player = Bukkit.getPlayer(uuid);
+            if (player != null && player.isOnline()) {
+                players.add(player);
+            }
+        }
+        return players;
+    }
+
+    private Set<UUID> getAllPlayerIds() {
+        Set<UUID> allPlayers = new LinkedHashSet<>(activePlayers);
+        allPlayers.addAll(deadPlayers);
+        return allPlayers;
+    }
+
+    private int getMinPlayers() {
+        return LunarProject.getInstance().getGameMinPlayers();
+    }
+
+    private int getMaxPlayers() {
+        return LunarProject.getInstance().getGameMaxPlayers();
+    }
+
+    private void beginStartingCountdown() {
+        countdownTime = LunarProject.getInstance().getGameStartCountdown();
+        broadcast("§aEnough players joined. The run will begin shortly.");
+        countdownTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (activePlayers.size() < getMinPlayers()) {
+                    broadcast("§cNot enough players. Start countdown cancelled.");
+                    setGameState(GameState.WAITING);
+                    cancel();
+                    return;
+                }
+
+                if (countdownTime <= 0) {
+                    setGameState(GameState.STARTED);
+                    cancel();
+                    return;
+                }
+
+                if (countdownTime % 5 == 0 || countdownTime <= 5) {
+                    broadcast("§eThe run starts in §c" + countdownTime + "§e seconds.");
+                    if (countdownTime <= 5) {
+                        sendTitle("§c" + countdownTime, "§ePrepare for battle");
+                    }
+                }
+                countdownTime--;
+            }
+        }.runTaskTimer(LunarProject.getInstance(), 0L, 20L);
+    }
+
+    private void beginEndCountdown() {
+        countdownTime = 5;
+        sendTitle("§8Run Over", "§7Cleaning up the room...");
+        countdownTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (countdownTime <= 0) {
+                    stop();
+                    cancel();
+                    return;
+                }
+                broadcast("§cThe room will close in " + countdownTime + " seconds.");
+                countdownTime--;
+            }
+        }.runTaskTimer(LunarProject.getInstance(), 0L, 20L);
+    }
+
+    private void cancelCountdown() {
+        if (countdownTask != null) {
+            countdownTask.cancel();
+            countdownTask = null;
+        }
+    }
+
+    private void checkPlayerCount() {
+        if (gameState == GameState.STARTING && activePlayers.size() < getMinPlayers()) {
+            setGameState(GameState.WAITING);
+            return;
+        }
+
+        if (gameState == GameState.STARTED && activePlayers.isEmpty()) {
+            setGameState(GameState.ENDED);
+        }
+    }
+
+    private void resetPlayerState(Player player) {
+        player.setGameMode(GameMode.SURVIVAL);
+        YellowBarUtil.refill(player);
+        Location fallback = getFallbackLocation();
+        if (fallback != null) {
+            player.teleport(fallback);
+        }
+    }
+
+    private Location getCurrentAnchorLocation() {
+        if (roundManager.getCurrentStage() != null) {
+            Location stageAnchor = roundManager.getCurrentStage().getBossLocation();
+            if (stageAnchor != null) {
+                return stageAnchor;
+            }
+
+            if (roundManager.getCurrentStage().getWorld() != null) {
+                return roundManager.getCurrentStage().getWorld().getSpawnLocation();
+            }
+        }
+
+        if (lobbyMap.getSpawnLocation() != null) {
+            return lobbyMap.getSpawnLocation();
+        }
+
+        return getFallbackLocation();
+    }
+
+    private Location getFallbackLocation() {
+        List<World> worlds = Bukkit.getWorlds();
+        if (worlds.isEmpty()) {
+            return null;
+        }
+        return worlds.get(0).getSpawnLocation();
+    }
+
+    private String formatSignedValue(double value) {
+        return (value > 0 ? "+" : "") + String.format("%.2f", value);
     }
 }

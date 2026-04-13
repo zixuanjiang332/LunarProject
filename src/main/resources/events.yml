@@ -1,0 +1,13 @@
+events:
+  WEIRD_MACHINE:
+    intro: "A cracked machine is still humming in the corner."
+    option_1: "Leave it alone"
+    option_2: "Force it to start"
+  ABANDONED_SUPPLIES:
+    intro: "You find a crate of unstable supplies left by another crew."
+    option_1: "Share the safe rations"
+    option_2: "Inject the stimulant pack"
+  WHISPERING_CONSOLE:
+    intro: "A dead console flickers with fragments of distorted text."
+    option_1: "Shut it down"
+    option_2: "Read the remaining logs"

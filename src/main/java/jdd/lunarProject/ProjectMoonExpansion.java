@@ -33,6 +33,24 @@ public class ProjectMoonExpansion extends PlaceholderExpansion {
         if (params.equalsIgnoreCase("sinking_intensity")) {
             return String.valueOf(variables.getInt("sinking_intensity"));
         }
+        if (params.equalsIgnoreCase("bleed_intensity")) {
+            return String.valueOf(variables.getInt("bleed_intensity"));
+        }
+        if (params.equalsIgnoreCase("rupture_intensity")) {
+            return String.valueOf(variables.getInt("rupture_intensity"));
+        }
+        if (params.equalsIgnoreCase("breath_intensity")) {
+            return String.valueOf(variables.getInt("breath_intensity"));
+        }
+        if (params.equalsIgnoreCase("breath_count")) {
+            return String.valueOf(variables.getInt("breath_count"));
+        }
+        if (params.equalsIgnoreCase("yellow_bar_current")) {
+            return String.valueOf(variables.getDouble("yellow_bar_current"));
+        }
+        if (params.equalsIgnoreCase("yellow_bar_max")) {
+            return String.valueOf(variables.getDouble("yellow_bar_max"));
+        }
         if (params.equalsIgnoreCase("res_gloom")){
             return String.valueOf(variables.getInt("res_gloom"));
         }

@@ -2,9 +2,8 @@ name: LunarProject
 version: '1.0-SNAPSHOT'
 main: jdd.lunarProject.LunarProject
 api-version: '1.21'
-description: balbala
+description: Roguelike gameplay loop plugin for LunarProject
 commands:
   game:
-    description: 游戏管理主指令
+    description: LunarProject game command
     usage: /game
-    permission: lunarproject.admin

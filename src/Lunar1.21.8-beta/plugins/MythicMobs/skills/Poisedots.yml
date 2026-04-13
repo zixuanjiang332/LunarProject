@@ -1,0 +1,54 @@
+# =========================================================
+# 【公共系统】呼吸 (Poise) 结算黑盒 API
+# 命名规范：严格遵循动词确切性，使用 Settle (结算)
+# 职能：执行整数洗白，双端极值锁死，以及层数归零时的强度清空。
+# =========================================================
+
+System_Settle_Poise:
+  Skills:
+  # ---------------------------------------------------------
+  # 1. 变量兜底与整数洗白
+  # ---------------------------------------------------------
+  - setvariable{var=caster.poise_intensity;type=INTEGER;val=0} ?!variableisset{var=caster.poise_intensity} @self
+  - setvariable{var=caster.poise_count;type=INTEGER;val=0} ?!variableisset{var=caster.poise_count} @self
+  
+  - setvariable{var=caster.poise_intensity;type=INTEGER;val="<caster.var.poise_intensity|int>"} @self
+  - setvariable{var=caster.poise_count;type=INTEGER;val="<caster.var.poise_count|int>"} @self
+
+  # ---------------------------------------------------------
+  # 2. 强度极值锁死 (双端上限均为 100)
+  # ---------------------------------------------------------
+  - setvariable{var=caster.poise_intensity;type=INTEGER;val=100} ?variableinrange{var=caster.poise_intensity;value=101to99999} @self
+  # 强度下限锁死
+  - setvariable{var=caster.poise_intensity;type=INTEGER;val=0} ?variableinrange{var=caster.poise_intensity;value=-999999to-1} @self
+
+  # ---------------------------------------------------------
+  # 3. 层数极值锁死 (玩家上限 50，怪物上限 20)
+  # ---------------------------------------------------------
+  # 玩家层数锁死
+  - setvariable{var=caster.poise_count;type=INTEGER;val=50} ?isPlayer{} ?variableinrange{var=caster.poise_count;value=51to99999} @self
+  # 怪物层数锁死
+  - setvariable{var=caster.poise_count;type=INTEGER;val=20} ?!isPlayer{} ?variableinrange{var=caster.poise_count;value=21to99999} @self
+  # 层数下限锁死
+  - setvariable{var=caster.poise_count;type=INTEGER;val=0} ?variableinrange{var=caster.poise_count;value=-999999to-1} @self
+
+  # ---------------------------------------------------------
+  # 4. 【空层保底】体系联动：有强度无层数时，保底给 1 层
+  # ---------------------------------------------------------
+  # 使用合法的 variableinrange 判定强度大于 0 (1to99999) 且层数为 0
+  - setvariable{var=caster.poise_count;type=INTEGER;val=1} ?variableinrange{var=caster.poise_intensity;value=1to99999} ?variableequals{var=caster.poise_count;value=0} @self
+  
+  # Mirror aliases so Java / placeholders can expose the mechanic as "breath".
+  - setvariable{var=caster.breath_intensity;type=INTEGER;val="<caster.var.poise_intensity|int>"} @self
+  - setvariable{var=caster.breath_count;type=INTEGER;val="<caster.var.poise_count|int>"} @self
+
+
+# =========================================================
+# 呼吸暴击表现 (由 Java 判定成功暴击后呼叫，发给攻击者自己)
+# =========================================================
+System_Apply_Poise_Crit_Effect:
+  Skills:
+  - effect:particles{p=crit;amount=25;v=0.6;s=0.2} @target
+  # 呼吸特有的天蓝色剑气粒子
+  - effect:particles{p=sweep_attack;amount=1;v=0.1;s=0} @target
+  - sound{s=entity.player.attack.crit;p=1.2;v=1} @self

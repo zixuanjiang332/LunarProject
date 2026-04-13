@@ -1,0 +1,127 @@
+# =========================================================
+# 【公共系统】流血 (Bleed) 状态机主入口
+# 结算节奏、层数消耗仍由 MythicMobs 负责；
+# Java 只根据 attack_type / attack_sin / damage_mode 路由伤害。
+# =========================================================
+System_Apply_Bleed:
+  Skills:
+  - setvariable{var=caster.bleed_intensity;type=INTEGER;val="<caster.var.bleed_intensity|int>"} @self
+  - setvariable{var=caster.bleed_intensity;type=INTEGER;val=99} ?variableinrange{var=caster.bleed_intensity;value=100to99999} @self
+  - setvariable{var=caster.bleed_intensity;type=INTEGER;val=0} ?variableinrange{var=caster.bleed_intensity;value=-999999to-1} @self
+  - skill{s=System_Apply_Bleed_Player_Branch} ?isPlayer{} @self
+  - skill{s=System_Apply_Bleed_Mob_Branch} ?!isPlayer{} @self
+
+System_Apply_Bleed_Player_Branch:
+  Skills:
+  - aura{auraName=Bleed_Timer_Player;duration=100;onEnd=System_Settle_Bleed_Player_Expire} ?!hasaura{aura=Bleed_Timer_Player} @self
+  - sound{s=block.honey_block.break;p=0.8;v=0.5} @self
+  - effect:particles{p=dust;color=#8B0000;amount=5;v=0.5;s=0.1} @self
+
+System_Settle_Bleed_Player_Expire:
+  Skills:
+  - 'message{m="&c[系统] 创口撕裂！当前流血强度: <caster.var.bleed_intensity>"} @self'
+  - skill{s=System_Execute_Bleed_Player_T1} ?variableinrange{var=caster.bleed_intensity;value=1to30} @self
+  - skill{s=System_Execute_Bleed_Player_T2} ?variableinrange{var=caster.bleed_intensity;value=31to60} @self
+  - skill{s=System_Execute_Bleed_Player_T3} ?variableinrange{var=caster.bleed_intensity;value=61to90} @self
+  - skill{s=System_Execute_Bleed_Player_T4} ?variableinrange{var=caster.bleed_intensity;value=91to99} @self
+  - setvariable{var=caster.bleed_intensity;type=INTEGER;val=0} ?variableinrange{var=caster.bleed_intensity;value=-99999to-1} @self
+  - 'message{m="&7&o伤口似乎暂时止血了..."} ?variableinrange{var=caster.bleed_intensity;value=-99999to0} @self'
+  - delay 1
+  - skill{s=System_Apply_Bleed} ?variableinrange{var=caster.bleed_intensity;value=1to99999} @self
+
+System_Execute_Bleed_Player_T1:
+  Skills:
+  - setvariable{var=caster.damage_mode;type=STRING;val="status"} @self
+  - setvariable{var=caster.attack_type;type=STRING;val="bleed_dot"} @self
+  - damage{a="<caster.var.bleed_intensity>";ia=true;pi=true} @self
+  - effect:particles{p=block_crack;material=REDSTONE_BLOCK;amount=30;v=0.5;s=0.2} @self
+  - delay 1
+  - variablesubtract{var=caster.bleed_intensity;amount=15} @self
+
+System_Execute_Bleed_Player_T2:
+  Skills:
+  - setvariable{var=caster.damage_mode;type=STRING;val="status"} @self
+  - setvariable{var=caster.attack_type;type=STRING;val="bleed_dot"} @self
+  - damage{a="<caster.var.bleed_intensity>";ia=true;pi=true} @self
+  - effect:particles{p=block_crack;material=REDSTONE_BLOCK;amount=50;v=0.5;s=0.2} @self
+  - delay 1
+  - variablesubtract{var=caster.bleed_intensity;amount=20} @self
+
+System_Execute_Bleed_Player_T3:
+  Skills:
+  - setvariable{var=caster.damage_mode;type=STRING;val="status"} @self
+  - setvariable{var=caster.attack_type;type=STRING;val="bleed_dot"} @self
+  - damage{a="<caster.var.bleed_intensity>";ia=true;pi=true} @self
+  - effect:particles{p=block_crack;material=REDSTONE_BLOCK;amount=80;v=0.5;s=0.2} @self
+  - delay 1
+  - variablesubtract{var=caster.bleed_intensity;amount=30} @self
+  - skill{s=System_Add_LustFragility} @self
+
+System_Execute_Bleed_Player_T4:
+  Skills:
+  - setvariable{var=caster.damage_mode;type=STRING;val="status"} @self
+  - setvariable{var=caster.attack_type;type=STRING;val="bleed_dot"} @self
+  - damage{a="<caster.var.bleed_intensity>";ia=true;pi=true} @self
+  - effect:particles{p=block_crack;material=REDSTONE_BLOCK;amount=120;v=0.5;s=0.2} @self
+  - delay 1
+  - variablesubtract{var=caster.bleed_intensity;amount=30} @self
+  - skill{s=System_Add_LustFragility;repeat=1;repeatInterval=1} @self
+
+System_Apply_Bleed_Mob_Branch:
+  Skills:
+  - aura{auraName=Bleed_Timer_Mob;duration=140;onEnd=System_Settle_Bleed_Mob_Expire} ?!hasaura{aura=Bleed_Timer_Mob} @self
+  - sound{s=block.honey_block.break;p=0.8;v=1} @self
+  - effect:particles{p=dust;color=#8B0000;amount=10;v=0.5;s=0.2} @self
+
+System_Settle_Bleed_Mob_Expire:
+  Skills:
+  - skill{s=System_Execute_Bleed_Mob_T1} ?variableinrange{var=caster.bleed_intensity;value=1to30} @self
+  - skill{s=System_Execute_Bleed_Mob_T2} ?variableinrange{var=caster.bleed_intensity;value=31to60} @self
+  - skill{s=System_Execute_Bleed_Mob_T3} ?variableinrange{var=caster.bleed_intensity;value=61to90} @self
+  - skill{s=System_Execute_Bleed_Mob_T4} ?variableinrange{var=caster.bleed_intensity;value=91to99} @self
+  - setvariable{var=caster.bleed_intensity;type=INTEGER;val=0} ?variableinrange{var=caster.bleed_intensity;value=-99999to-1} @self
+  - delay 1
+  - skill{s=System_Apply_Bleed} ?variableinrange{var=caster.bleed_intensity;value=1to99999} @self
+
+System_Execute_Bleed_Mob_T1:
+  Skills:
+  - setvariable{var=caster.damage_mode;type=STRING;val="status"} @self
+  - setvariable{var=caster.attack_type;type=STRING;val="bleed"} @self
+  - setvariable{var=caster.attack_sin;type=STRING;val="lust"} @self
+  - damage{a="<caster.var.bleed_intensity>";ia=true;pi=true} @self
+  - effect:particles{p=block_crack;material=REDSTONE_BLOCK;amount=40;v=0.5;s=0.2} @self
+  - delay 1
+  - variablesubtract{var=caster.bleed_intensity;amount=15} @self
+
+System_Execute_Bleed_Mob_T2:
+  Skills:
+  - setvariable{var=caster.damage_mode;type=STRING;val="status"} @self
+  - setvariable{var=caster.attack_type;type=STRING;val="bleed"} @self
+  - setvariable{var=caster.attack_sin;type=STRING;val="lust"} @self
+  - damage{a="<caster.var.bleed_intensity>";ia=true;pi=true} @self
+  - effect:particles{p=block_crack;material=REDSTONE_BLOCK;amount=60;v=0.5;s=0.2} @self
+  - delay 1
+  - variablesubtract{var=caster.bleed_intensity;amount=20} @self
+
+System_Execute_Bleed_Mob_T3:
+  Skills:
+  - setvariable{var=caster.damage_mode;type=STRING;val="status"} @self
+  - setvariable{var=caster.attack_type;type=STRING;val="bleed"} @self
+  - setvariable{var=caster.attack_sin;type=STRING;val="lust"} @self
+  - damage{a="<caster.var.bleed_intensity>";ia=true;pi=true} @self
+  - effect:particles{p=block_crack;material=REDSTONE_BLOCK;amount=90;v=0.5;s=0.2} @self
+  - delay 1
+  - variablesubtract{var=caster.bleed_intensity;amount=30} @self
+  - skill{s=System_Add_LustFragility} @self
+
+System_Execute_Bleed_Mob_T4:
+  Skills:
+  - setvariable{var=caster.damage_mode;type=STRING;val="status"} @self
+  - setvariable{var=caster.attack_type;type=STRING;val="bleed"} @self
+  - setvariable{var=caster.attack_sin;type=STRING;val="lust"} @self
+  - damage{a="<caster.var.bleed_intensity>";ia=true;pi=true} @self
+  - effect:particles{p=block_crack;material=REDSTONE_BLOCK;amount=150;v=0.5;s=0.2} @self
+  - delay 1
+  - variablesubtract{var=caster.bleed_intensity;amount=30} @self
+  - skill{s=System_Add_LustFragility;repeat=1;repeatInterval=1} @self
+  - skill{s=System_Add_PureFragility} ?variableequals{var=caster.bleed_intensity;value=99} @self

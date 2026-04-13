@@ -4,6 +4,23 @@ database:
   database: "lunarproject"
   username: "root"
   password: "1054874739"
+game:
+  min-players: 1
+  max-players: 4
+  start-countdown: 10
+  map-bootstrap-template: "test-map"
+  vote-timeout-seconds: 20
+  ready-timeout-seconds: 30
+gui:
+  enable: true
+  menu-item-material: "COMPASS"
+  menu-item-slot: 8
+  auto-open-vote: true
+  auto-open-reward: true
+  auto-open-event: true
+debug:
+  combat-log: false
+  dev-mob-scaling: false
 stagger-thresholds:
   Warrior:
     t1: 0.50
