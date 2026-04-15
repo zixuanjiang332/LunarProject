@@ -127,6 +127,19 @@ public class StageManager {
         return allPossible.get(ThreadLocalRandom.current().nextInt(allPossible.size()));
     }
 
+    public static StageTemplate getAnyStageByType(int tier, String stageType) {
+        List<StageTemplate> allPossible = new ArrayList<>();
+        for (Map.Entry<StageQueryKey, List<StageTemplate>> entry : stagesMap.entrySet()) {
+            if (entry.getKey().tier() == tier && entry.getKey().stageType().equalsIgnoreCase(stageType)) {
+                allPossible.addAll(entry.getValue());
+            }
+        }
+        if (allPossible.isEmpty()) {
+            return null;
+        }
+        return allPossible.get(ThreadLocalRandom.current().nextInt(allPossible.size()));
+    }
+
     private static void validateStageData(Collection<StageTemplate> templates) {
         Set<String> presentTypes = new HashSet<>();
 
@@ -244,6 +257,7 @@ public class StageManager {
             ensureTemplate(connection, "T1_R4_NORMAL_A", 1, 4, "NORMAL", "test-map");
             ensureTemplate(connection, "T1_R4_ELITE_A", 1, 4, "ELITE", "test-map");
             ensureTemplate(connection, "T1_R4_EVENT_A", 1, 4, "EVENT", "event-map");
+            ensureTemplate(connection, "T1_R5_SHOP_A", 1, 5, "SHOP", "shop-map");
             ensureTemplate(connection, "T1_R5_BOSS_A", 1, 5, "BOSS", "test-map");
 
             ensureStageMobs(connection, "T1_R1_NORMAL_A",

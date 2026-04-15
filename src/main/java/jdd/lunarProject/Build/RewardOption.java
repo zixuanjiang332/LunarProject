@@ -5,7 +5,8 @@ public record RewardOption(
         String targetId,
         String name,
         String rarity,
-        String description
+        String description,
+        String mythicItemId
 ) {
     public enum RewardType {
         RELIC,

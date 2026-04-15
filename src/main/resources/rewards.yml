@@ -1,76 +1,73 @@
 services:
-  field_medicine:
-    name: "Field Medicine"
+  clear_mind:
+    name: "理智安定"
     rarity: "COMMON"
-    tags: ["rest", "recovery"]
-    description: "Fully restore HP."
+    tags: ["sanity", "rest"]
+    description: "恢复 8 点理智。"
+    effect_type: "GAIN_SANITY"
+    effect_value: 8
+  field_patch:
+    name: "战地疗养"
+    rarity: "COMMON"
+    tags: ["heal", "rest"]
+    description: "回复全部生命与混乱抗性。"
     effect_type: "FULL_HEAL"
     effect_value: 0
-  clear_mind:
-    name: "Clear Mind"
-    rarity: "COMMON"
-    tags: ["rest", "sanity"]
-    description: "Restore 12 sanity."
-    effect_type: "GAIN_SANITY"
-    effect_value: 12
-  cleansing_bath:
-    name: "Cleansing Bath"
-    rarity: "COMMON"
-    tags: ["rest", "cleanse"]
-    description: "Remove common negative effects."
-    effect_type: "CLEANSE_NEGATIVE"
-    effect_value: 0
-  assault_stim:
-    name: "Assault Stim"
+  sharpen_focus:
+    name: "集中校准"
     rarity: "UNCOMMON"
-    tags: ["shop", "offense"]
-    description: "Gain 12% damage dealt for the rest of the run."
+    tags: ["buff", "shop"]
+    description: "本局内造成的伤害提高 10%。"
     effect_type: "TEMP_DAMAGE_DEALT_MULT"
-    effect_value: 0.12
-  safety_harness:
-    name: "Safety Harness"
+    effect_value: 0.10
+  emergency_barrier:
+    name: "紧急防护"
     rarity: "UNCOMMON"
-    tags: ["shop", "survival"]
-    description: "Take 10% less damage for the rest of the run."
+    tags: ["buff", "shop"]
+    description: "本局内受到的伤害降低 10%。"
     effect_type: "TEMP_DAMAGE_TAKEN_MULT"
     effect_value: -0.10
-  steady_breath:
-    name: "Steady Breath"
-    rarity: "UNCOMMON"
-    tags: ["event", "sanity"]
-    description: "Gain 4 extra sanity whenever sanity is restored."
-    effect_type: "TEMP_SANITY_GAIN_BONUS"
-    effect_value: 4
-  fracture_notes:
-    name: "Fracture Notes"
-    rarity: "RARE"
-    tags: ["elite", "fragility"]
-    description: "Apply 1 extra fragility for the rest of the run."
-    effect_type: "TEMP_FRAGILITY_BONUS"
-    effect_value: 1
+  clean_body:
+    name: "状态净化"
+    rarity: "COMMON"
+    tags: ["cleanse", "rest"]
+    description: "移除常见负面药水效果。"
+    effect_type: "CLEANSE_NEGATIVE"
+    effect_value: 0
 
 pools:
-  normal_clear:
-    count: 3
-    relics: ["war_drum", "shell_plating", "mirror_casing", "sinking_compass"]
-    services: []
   elite_clear:
     count: 3
-    relics: ["war_drum", "shell_plating", "mirror_casing", "sinking_compass", "fracture_lens"]
-    services: ["assault_stim", "safety_harness", "fracture_notes"]
+    relics:
+      - "demo_terminal_chip"
+    services:
+      - "sharpen_focus"
+      - "emergency_barrier"
   boss_clear:
     count: 3
-    relics: ["mirror_casing", "sinking_compass", "fracture_lens"]
-    services: ["assault_stim", "safety_harness", "steady_breath"]
-  rest_room:
-    count: 3
-    relics: ["shell_plating", "mirror_casing", "sinking_compass"]
-    services: ["field_medicine", "clear_mind", "cleansing_bath"]
-  shop_room:
-    count: 3
-    relics: ["war_drum", "shell_plating", "mirror_casing", "sinking_compass", "fracture_lens"]
-    services: ["assault_stim", "safety_harness", "clear_mind"]
+    relics:
+      - "demo_terminal_chip"
+    services:
+      - "sharpen_focus"
+      - "field_patch"
   event_room:
     count: 3
-    relics: ["war_drum", "mirror_casing", "sinking_compass", "fracture_lens"]
-    services: ["steady_breath", "assault_stim", "field_medicine"]
+    relics:
+      - "demo_terminal_chip"
+    services:
+      - "clear_mind"
+      - "field_patch"
+  shop_room:
+    count: 3
+    relics: []
+    services:
+      - "sharpen_focus"
+      - "emergency_barrier"
+      - "field_patch"
+  rest_room:
+    count: 3
+    relics: []
+    services:
+      - "field_patch"
+      - "clear_mind"
+      - "clean_body"

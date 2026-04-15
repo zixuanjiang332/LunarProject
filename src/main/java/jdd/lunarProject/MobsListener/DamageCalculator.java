@@ -36,10 +36,6 @@ public class DamageCalculator implements Listener {
             return;
         }
 
-        if (CombatVariableUtil.isStatusDamage(player)) {
-            return;
-        }
-
         boolean isMythicSkill = false;
         for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
             if (element.getClassName().contains("io.lumine.mythic")) {
@@ -53,7 +49,7 @@ public class DamageCalculator implements Listener {
         }
 
         float attackStrength = player.getCooledAttackStrength(0.0F);
-        if (attackStrength < 0.8F) {
+        if (attackStrength < 0.9F) {
             event.setCancelled(true);
             return;
         }
@@ -102,9 +98,13 @@ public class DamageCalculator implements Listener {
         double baseDamage = event.getDamage();
         if (CombatVariableUtil.isIndependentDot(attackType)) {
             event.setDamage(baseDamage);
-            double yellowRemaining = YellowBarUtil.applyDamage(victim, baseDamage);
+            YellowBarUtil.DamageResult yellowResult = YellowBarUtil.applyDamage(victim, baseDamage);
+            if (yellowResult.broken()) {
+                LunarProject.getInstance().getStaggerManager().triggerYellowBarBreak(victim);
+            }
+            DamageIndicatorUtil.spawnIndicator(targetLocation(victim), baseDamage, false, attackType, statusDamage, yellowResult.broken());
             clearAttackTags(attacker);
-            logCombat("dot damage=" + baseDamage + " yellow=" + String.format("%.2f", yellowRemaining));
+            logCombat("dot damage=" + baseDamage + " yellow=" + String.format("%.2f", yellowResult.currentValue()));
             return;
         }
 
@@ -123,7 +123,9 @@ public class DamageCalculator implements Listener {
 
         Location targetLocation = victim.getLocation();
         if (finalDamage != 0.0) {
-            DamageIndicatorUtil.spawnIndicator(targetLocation, finalDamage, isCrit);
+            // Distinguish normal hits, sin/status hits, dot hits and yellow-bar breaks
+            // so players can immediately read what kind of damage just happened.
+            DamageIndicatorUtil.spawnIndicator(targetLocation, finalDamage, isCrit, attackType, statusDamage, false);
         }
 
         if (victim instanceof Player playerVictim) {
@@ -134,15 +136,23 @@ public class DamageCalculator implements Listener {
         }
 
         event.setDamage(finalDamage);
-        double yellowRemaining = YellowBarUtil.applyDamage(victim, finalDamage);
+        YellowBarUtil.DamageResult yellowResult = YellowBarUtil.applyDamage(victim, finalDamage);
+        if (yellowResult.broken()) {
+            LunarProject.getInstance().getStaggerManager().triggerYellowBarBreak(victim);
+            DamageIndicatorUtil.spawnIndicator(targetLocation, 0.0, false, attackType, true, true);
+        }
         clearAttackTags(attacker);
         logCombat(
                 "base=" + baseDamage +
                         " res=" + String.format("%.2f", resMultiplier) +
                         " fragility=" + String.format("%.2f", fragilityMultiplier) +
                         " final=" + String.format("%.2f", finalDamage) +
-                        " yellow=" + String.format("%.2f", yellowRemaining)
+                        " yellow=" + String.format("%.2f", yellowResult.currentValue())
         );
+    }
+
+    private Location targetLocation(Entity entity) {
+        return entity.getLocation();
     }
 
     private double clampResistance(double value) {

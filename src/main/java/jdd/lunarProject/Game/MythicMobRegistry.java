@@ -40,14 +40,23 @@ public final class MythicMobRegistry {
         }
 
         for (File file : files) {
+            String fileName = file.getName().toLowerCase(Locale.ROOT);
+            if (fileName.contains("vanilla")) {
+                continue;
+            }
+
             YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
             for (String mobId : yaml.getKeys(false)) {
                 if (mobId == null || mobId.isBlank()) {
                     continue;
                 }
 
+                if (fileName.contains("example") && !isAllowedExampleMob(mobId)) {
+                    continue;
+                }
+
                 allMobIds.add(mobId);
-                if (isVanillaOverride(mobId) || isTestMob(mobId)) {
+                if (isVanillaOverride(mobId)) {
                     continue;
                 }
 
@@ -61,7 +70,7 @@ public final class MythicMobRegistry {
 
         if (combatMobIds.isEmpty()) {
             for (String mobId : allMobIds) {
-                if (!isVanillaOverride(mobId) && !isTestMob(mobId)) {
+                if (!isVanillaOverride(mobId)) {
                     addUnique(combatMobIds, mobId);
                 }
             }
@@ -133,7 +142,7 @@ public final class MythicMobRegistry {
         return mobId.equals(mobId.toUpperCase(Locale.ROOT)) && mobId.contains("_");
     }
 
-    private static boolean isTestMob(String mobId) {
+    private static boolean isAllowedExampleMob(String mobId) {
         String normalized = mobId.toLowerCase(Locale.ROOT);
         return normalized.startsWith("test") || normalized.contains("sandbag");
     }

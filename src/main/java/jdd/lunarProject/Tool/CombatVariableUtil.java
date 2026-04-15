@@ -39,7 +39,11 @@ public final class CombatVariableUtil {
 
     public static Optional<VariableRegistry> getVariables(Entity entity) {
         if (entity instanceof Player player) {
-            return Optional.of(MythicBukkit.inst().getPlayerManager().getProfile(player).getVariables());
+            var profile = MythicBukkit.inst().getPlayerManager().getProfile(player);
+            if (profile == null) {
+                return Optional.empty();
+            }
+            return Optional.of(profile.getVariables());
         }
 
         return MythicBukkit.inst().getMobManager().getActiveMob(entity.getUniqueId())

@@ -10,6 +10,7 @@ public class PlayerRunData {
     private final Map<BuildModifierType, Double> temporaryModifiers = new EnumMap<>(BuildModifierType.class);
     private final List<String> rewardHistory = new ArrayList<>();
     private int rewardCount = 0;
+    private int lunarCoins = 0;
 
     public List<String> getRelicIds() {
         return relicIds;
@@ -29,5 +30,22 @@ public class PlayerRunData {
 
     public void incrementRewardCount() {
         rewardCount++;
+    }
+
+    public int getLunarCoins() {
+        return lunarCoins;
+    }
+
+    public void addLunarCoins(int amount) {
+        lunarCoins = Math.max(0, lunarCoins + Math.max(0, amount));
+    }
+
+    public boolean spendLunarCoins(int amount) {
+        int safeAmount = Math.max(0, amount);
+        if (lunarCoins < safeAmount) {
+            return false;
+        }
+        lunarCoins -= safeAmount;
+        return true;
     }
 }

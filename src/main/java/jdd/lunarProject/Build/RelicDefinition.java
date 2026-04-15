@@ -10,6 +10,7 @@ public record RelicDefinition(
         String description,
         BuildModifierType effectType,
         double effectValue,
-        String stackRule
+        String stackRule,
+        String mythicItemId
 ) {
 }

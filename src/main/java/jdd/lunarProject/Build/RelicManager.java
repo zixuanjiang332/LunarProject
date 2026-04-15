@@ -29,7 +29,7 @@ public final class RelicManager {
         YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
         ConfigurationSection section = config.getConfigurationSection("relics");
         if (section == null) {
-            loadMessages.add("No relic definitions found in relics.yml.");
+            loadMessages.add("relics.yml 中未找到饰品定义。");
             return List.copyOf(loadMessages);
         }
 
@@ -41,7 +41,7 @@ public final class RelicManager {
 
             BuildModifierType effectType = BuildModifierType.fromConfig(relicSection.getString("effect_type"));
             if (effectType == null) {
-                loadMessages.add("Skipped relic with invalid effect_type: " + relicId);
+                loadMessages.add("跳过了 effect_type 无效的饰品: " + relicId);
                 continue;
             }
 
@@ -50,15 +50,16 @@ public final class RelicManager {
                     relicSection.getString("name", relicId),
                     relicSection.getString("rarity", "COMMON"),
                     relicSection.getStringList("tags"),
-                    relicSection.getString("description", "No description."),
+                    relicSection.getString("description", "暂无描述"),
                     effectType,
                     relicSection.getDouble("effect_value", 0.0),
-                    relicSection.getString("stack_rule", "UNIQUE")
+                    relicSection.getString("stack_rule", "UNIQUE"),
+                    relicSection.getString("mythic_item_id", "")
             );
             relicDefinitions.put(relicId, relicDefinition);
         }
 
-        loadMessages.add("Loaded " + relicDefinitions.size() + " relic definitions.");
+        loadMessages.add("已加载 " + relicDefinitions.size() + " 个饰品定义。");
         return List.copyOf(loadMessages);
     }
 

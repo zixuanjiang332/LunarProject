@@ -1,41 +1,10 @@
 relics:
-  war_drum:
-    name: "War Drum"
+  demo_terminal_chip:
+    name: "终端演示芯片"
     rarity: "COMMON"
-    tags: ["offense", "combat"]
-    description: "Deal 15% more damage."
+    tags: ["demo", "placeholder"]
+    description: "一枚仅用于验证奖励流程的演示饰品，当前不提供任何效果。"
     effect_type: "DAMAGE_DEALT_MULT"
-    effect_value: 0.15
+    effect_value: 0.0
     stack_rule: "UNIQUE"
-  shell_plating:
-    name: "Shell Plating"
-    rarity: "COMMON"
-    tags: ["defense", "survival"]
-    description: "Take 12% less damage."
-    effect_type: "DAMAGE_TAKEN_MULT"
-    effect_value: -0.12
-    stack_rule: "UNIQUE"
-  mirror_casing:
-    name: "Mirror Casing"
-    rarity: "UNCOMMON"
-    tags: ["recovery", "combat"]
-    description: "Gain 10% additional post-combat healing."
-    effect_type: "POST_COMBAT_HEAL_BONUS"
-    effect_value: 0.10
-    stack_rule: "UNIQUE"
-  sinking_compass:
-    name: "Sinking Compass"
-    rarity: "UNCOMMON"
-    tags: ["sanity", "utility"]
-    description: "Gain 5 additional sanity whenever sanity is restored."
-    effect_type: "SANITY_GAIN_BONUS"
-    effect_value: 5.0
-    stack_rule: "UNIQUE"
-  fracture_lens:
-    name: "Fracture Lens"
-    rarity: "RARE"
-    tags: ["offense", "fragility"]
-    description: "Your attacks apply 1 extra point of fragility."
-    effect_type: "FRAGILITY_BONUS"
-    effect_value: 1.0
-    stack_rule: "UNIQUE"
+    mythic_item_id: "Demo_Relic_Test"

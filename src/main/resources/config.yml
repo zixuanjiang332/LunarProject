@@ -21,7 +21,15 @@ gui:
 debug:
   combat-log: false
   dev-mob-scaling: false
+classes:
+  测试职业:
+    max-health: 180
+    yellow-bar: 135
+    base-sanity: 50
 stagger-thresholds:
+  测试职业:
+    t1: 0.75
+    t2: 0.00
   Warrior:
     t1: 0.50
     t2: 0.00

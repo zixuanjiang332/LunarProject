@@ -1,13 +1,13 @@
 events:
   WEIRD_MACHINE:
-    intro: "A cracked machine is still humming in the corner."
-    option_1: "Leave it alone"
-    option_2: "Force it to start"
+    intro: "角落里有一台破损的机器，还在发出低沉嗡鸣。"
+    option_1: "不要碰它"
+    option_2: "强行启动"
   ABANDONED_SUPPLIES:
-    intro: "You find a crate of unstable supplies left by another crew."
-    option_1: "Share the safe rations"
-    option_2: "Inject the stimulant pack"
+    intro: "你发现了另一支队伍遗留下来的不稳定补给箱。"
+    option_1: "分发安全口粮"
+    option_2: "注射兴奋剂包"
   WHISPERING_CONSOLE:
-    intro: "A dead console flickers with fragments of distorted text."
-    option_1: "Shut it down"
-    option_2: "Read the remaining logs"
+    intro: "一台死去的终端闪烁着扭曲破碎的文字。"
+    option_1: "立刻关闭"
+    option_2: "读取残余日志"

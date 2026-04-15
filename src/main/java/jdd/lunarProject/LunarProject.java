@@ -140,7 +140,6 @@ public final class LunarProject extends JavaPlugin {
         }
 
         new SinkingSpeedManager().runTaskTimer(this, 0L, 10L);
-
         PluginCommand gameCommand = getCommand("game");
         if (gameCommand == null) {
             getLogger().severe("Command /game is missing from plugin.yml.");

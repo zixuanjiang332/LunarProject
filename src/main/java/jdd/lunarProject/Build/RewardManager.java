@@ -7,6 +7,7 @@ import org.bukkit.attribute.Attribute;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffectType;
 
 import java.io.File;
@@ -18,7 +19,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 
 public final class RewardManager {
     private static final Map<String, RewardPoolDefinition> rewardPools = new HashMap<>();
@@ -41,7 +41,7 @@ public final class RewardManager {
         YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
         loadServices(config.getConfigurationSection("services"));
         loadPools(config.getConfigurationSection("pools"));
-        loadMessages.add("Loaded " + rewardPools.size() + " reward pools and " + serviceDefinitions.size() + " service rewards.");
+        loadMessages.add("已加载 " + rewardPools.size() + " 个奖励池和 " + serviceDefinitions.size() + " 个服务奖励。");
         return List.copyOf(loadMessages);
     }
 
@@ -59,13 +59,19 @@ public final class RewardManager {
             if (game.hasRelic(player.getUniqueId(), relicId)) {
                 continue;
             }
+
             RelicDefinition relicDefinition = RelicManager.getRelic(relicId);
+            if (relicDefinition == null) {
+                continue;
+            }
+
             candidates.add(new RewardOption(
                     RewardOption.RewardType.RELIC,
                     relicDefinition.id(),
                     relicDefinition.name(),
                     relicDefinition.rarity(),
-                    relicDefinition.description()
+                    relicDefinition.description(),
+                    relicDefinition.mythicItemId()
             ));
         }
 
@@ -79,7 +85,8 @@ public final class RewardManager {
                     serviceDefinition.id(),
                     serviceDefinition.name(),
                     serviceDefinition.rarity(),
-                    serviceDefinition.description()
+                    serviceDefinition.description(),
+                    ""
             ));
         }
 
@@ -111,14 +118,23 @@ public final class RewardManager {
         return serviceDefinitions.get(serviceId);
     }
 
+    public static ItemStack getRewardDisplayItem(RewardOption rewardOption) {
+        if (rewardOption == null || rewardOption.mythicItemId() == null || rewardOption.mythicItemId().isBlank()) {
+            return null;
+        }
+        return MythicBukkit.inst().getItemManager().getItemStack(rewardOption.mythicItemId());
+    }
+
     public static boolean applyReward(Game game, Player player, RewardOption rewardOption) {
         if (rewardOption.rewardType() == RewardOption.RewardType.RELIC) {
             RelicDefinition relicDefinition = RelicManager.getRelic(rewardOption.targetId());
             if (relicDefinition == null || !game.addRelic(player.getUniqueId(), relicDefinition.id())) {
                 return false;
             }
-            game.recordReward(player.getUniqueId(), "Relic - " + relicDefinition.name());
-            LunarProject.getInstance().getLogger().info("[Reward] " + player.getName() + " picked relic " + relicDefinition.id());
+
+            giveMythicItem(player, relicDefinition);
+            game.recordReward(player.getUniqueId(), "饰品 - " + relicDefinition.name());
+            LunarProject.getInstance().getLogger().info("[Reward] " + player.getName() + " 选择了饰品 " + relicDefinition.id());
             return true;
         }
 
@@ -128,14 +144,14 @@ public final class RewardManager {
         }
 
         applyServiceEffect(game, player, serviceDefinition);
-        game.recordReward(player.getUniqueId(), "Service - " + serviceDefinition.name());
-        LunarProject.getInstance().getLogger().info("[Reward] " + player.getName() + " picked service " + serviceDefinition.id());
+        game.recordReward(player.getUniqueId(), "服务 - " + serviceDefinition.name());
+        LunarProject.getInstance().getLogger().info("[Reward] " + player.getName() + " 选择了服务 " + serviceDefinition.id());
         return true;
     }
 
     public static String getPoolForStageType(String stageType) {
         if (stageType == null) {
-            return "normal_clear";
+            return "";
         }
         return switch (stageType.toUpperCase(Locale.ROOT)) {
             case "ELITE" -> "elite_clear";
@@ -143,8 +159,23 @@ public final class RewardManager {
             case "REST" -> "rest_room";
             case "EVENT" -> "event_room";
             case "BOSS" -> "boss_clear";
-            default -> "normal_clear";
+            default -> "";
         };
+    }
+
+    private static void giveMythicItem(Player player, RelicDefinition relicDefinition) {
+        if (relicDefinition.mythicItemId() == null || relicDefinition.mythicItemId().isBlank()) {
+            return;
+        }
+
+        ItemStack rewardItem = MythicBukkit.inst().getItemManager().getItemStack(relicDefinition.mythicItemId());
+        if (rewardItem == null) {
+            LunarProject.getInstance().getLogger().warning("未找到饰品对应的 Mythic 物品: " + relicDefinition.mythicItemId());
+            return;
+        }
+
+        Map<Integer, ItemStack> leftovers = player.getInventory().addItem(rewardItem.clone());
+        leftovers.values().forEach(leftover -> player.getWorld().dropItemNaturally(player.getLocation(), leftover));
     }
 
     private static void applyServiceEffect(Game game, Player player, ServiceDefinition serviceDefinition) {
@@ -189,7 +220,7 @@ public final class RewardManager {
                 game.changePlayerSanity(player, (int) Math.round(effectValue));
                 game.healPlayerToFull(player);
             }
-            default -> LunarProject.getInstance().getLogger().warning("Unknown service effect type: " + serviceDefinition.effectType());
+            default -> LunarProject.getInstance().getLogger().warning("未知的服务效果类型: " + serviceDefinition.effectType());
         }
     }
 
@@ -209,7 +240,7 @@ public final class RewardManager {
                     serviceSection.getString("name", serviceId),
                     serviceSection.getString("rarity", "COMMON"),
                     serviceSection.getStringList("tags"),
-                    serviceSection.getString("description", "No description."),
+                    serviceSection.getString("description", "暂无描述"),
                     serviceSection.getString("effect_type", "GAIN_SANITY"),
                     serviceSection.getDouble("effect_value", 0.0)
             ));

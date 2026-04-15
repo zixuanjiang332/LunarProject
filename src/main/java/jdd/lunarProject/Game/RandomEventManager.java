@@ -50,29 +50,29 @@ public final class RandomEventManager {
     public static void broadcastEventIntro(Game game, String eventId) {
         EventDefinition eventDefinition = EventConfigManager.getEvent(eventId);
         if (eventDefinition != null) {
-            game.broadcast("§a" + eventDefinition.intro());
-            game.broadcast("§b[1] " + eventDefinition.optionOne());
-            game.broadcast("§b[2] " + eventDefinition.optionTwo());
+            game.broadcast("§6" + eventDefinition.intro());
+            game.broadcast("§b[1] §f" + eventDefinition.optionOne());
+            game.broadcast("§b[2] §f" + eventDefinition.optionTwo());
         } else {
-            game.broadcast("§aA strange event blocks the road ahead.");
-            game.broadcast("§b[1] Leave carefully");
-            game.broadcast("§b[2] Investigate");
+            game.broadcast("§6你在房间中发现了一个异常事件，但当前没有读取到对应的事件配置。");
+            game.broadcast("§b[1] §f谨慎离开");
+            game.broadcast("§b[2] §f继续调查");
         }
-        game.broadcast("§eUse /game event choose <1|2> to resolve this room.");
+        game.broadcast("§e使用 /game event choose <1|2> 进行选择。");
     }
 
     public static EventOutcome resolveTimeout(Game game, String eventId) {
         if (eventId == null || eventId.isBlank()) {
             return EventOutcome.INVALID;
         }
-        game.broadcast("§eNo one acted in time. The team falls back to the safe option.");
+        game.broadcast("§e事件选择超时，系统将默认执行选项 1。");
         return handleEventChoice(game, pickFallbackPlayer(game), eventId, 1);
     }
 
     private static EventOutcome handleWeirdMachine(Game game, Player player, int choice) {
         if (choice == 1) {
             adjustSanityForAlivePlayers(game, 5);
-            game.broadcast("§aThe crew leaves the machine untouched and regains some composure.");
+            game.broadcast("§a队伍谨慎地避开了古怪装置，理智略有恢复。");
             return EventOutcome.SAFE_RESOLVED;
         }
 
@@ -80,7 +80,7 @@ public final class RandomEventManager {
             return EventOutcome.INVALID;
         }
 
-        game.broadcast("§c" + player.getName() + " forces the machine online. Warning sirens erupt.");
+        game.broadcast("§c" + player.getName() + " 触碰了古怪装置，周围的空气开始扭曲。");
         if (ThreadLocalRandom.current().nextDouble() < 0.55) {
             StageTemplate ambushTemplate = findAmbushTemplate(game);
             if (ambushTemplate != null) {
@@ -91,7 +91,7 @@ public final class RandomEventManager {
 
         applyTeamEffect(game, alive -> alive.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, 20 * 90, 0, false, true, true)));
         adjustSanityForAlivePlayers(game, 8);
-        game.broadcast("§aThe machine stabilizes and shields the crew.");
+        game.broadcast("§a装置最终稳定下来，队伍获得了短暂庇护与理智恢复。");
         return EventOutcome.SAFE_RESOLVED;
     }
 
@@ -99,7 +99,7 @@ public final class RandomEventManager {
         if (choice == 1) {
             healAlivePlayersPercent(game, 0.20);
             adjustSanityForAlivePlayers(game, 8);
-            game.broadcast("§aThe supplies are divided carefully. The team patches itself up.");
+            game.broadcast("§a队伍整理了废弃补给，恢复了部分生命与理智。");
             return EventOutcome.SAFE_RESOLVED;
         }
 
@@ -110,14 +110,14 @@ public final class RandomEventManager {
         player.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 20 * 90, 0, false, true, true));
         player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 20 * 90, 0, false, true, true));
         game.changePlayerSanity(player, -10);
-        game.broadcast("§c" + player.getName() + " uses the stimulant pack.");
+        game.broadcast("§e" + player.getName() + " 强行拆解了补给箱，获得临时强化，但也付出了理智代价。");
         return EventOutcome.SAFE_RESOLVED;
     }
 
     private static EventOutcome handleWhisperingConsole(Game game, Player player, int choice) {
         if (choice == 1) {
             adjustSanityForAlivePlayers(game, 3);
-            game.broadcast("§aThe console is shut down before it can say more.");
+            game.broadcast("§a控制台的低语逐渐平息，队伍稳住了心神。");
             return EventOutcome.SAFE_RESOLVED;
         }
 
@@ -127,7 +127,7 @@ public final class RandomEventManager {
 
         applyTeamEffect(game, alive -> alive.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, 20 * 120, 1, false, true, true)));
         adjustSanityForAlivePlayers(game, -6);
-        game.broadcast("§6" + player.getName() + " reads the logs aloud. The crew learns something useful, at a cost.");
+        game.broadcast("§e" + player.getName() + " 解开了控制台封锁，队伍获得护盾，但也承受了精神压力。");
         return EventOutcome.SAFE_RESOLVED;
     }
 

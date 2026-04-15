@@ -8,6 +8,7 @@ import jdd.lunarProject.Build.RewardPoolDefinition;
 import jdd.lunarProject.Build.ServiceDefinition;
 import jdd.lunarProject.Game.Game;
 import jdd.lunarProject.Game.GameManager;
+import jdd.lunarProject.Game.PlayerClassManager;
 import jdd.lunarProject.Game.RoundManager;
 import jdd.lunarProject.Game.StageModels.StageTemplate;
 import jdd.lunarProject.LunarProject;
@@ -79,26 +80,26 @@ public class GuiManager {
     }
 
     public void openMainMenu(Player player) {
-        GuiSession session = createFramedSession(GuiType.MAIN_MENU, MAIN_MENU_SIZE, "Lunar Terminal", Material.BLACK_STAINED_GLASS_PANE);
+        GuiSession session = createFramedSession(GuiType.MAIN_MENU, MAIN_MENU_SIZE, "边狱终端", Material.BLACK_STAINED_GLASS_PANE);
         Game game = GameManager.getPlayerGame(player.getUniqueId());
 
-        session.setItem(4, createFeatureCard(Material.NETHER_STAR, "Run Snapshot", buildStatusLore(game), true), event -> openRoomStatus(player));
-        session.setItem(10, createActionCard(Material.EMERALD, "Create Room", "Spin up a fresh room and join it."), event -> {
+        session.setItem(4, createFeatureCard(Material.NETHER_STAR, "局内概览", buildStatusLore(game), true), event -> openRoomStatus(player));
+        session.setItem(10, createActionCard(Material.EMERALD, "创建房间", "创建一个新的测试房间并立即加入。"), event -> {
             if (GameManager.getPlayerGame(player.getUniqueId()) != null) {
-                player.sendMessage("§cYou are already in a room.");
+                player.sendMessage("§c你已经在一个房间中。");
                 failFeedback(player);
                 return;
             }
             Game newGame = GameManager.createGame();
             newGame.playerJoin(player);
-            player.sendMessage("§aCreated and joined room §f" + newGame.getGameId());
+            player.sendMessage("§a已创建并加入房间：§f" + newGame.getGameId());
             successFeedback(player);
             openRoomStatus(player);
         });
-        session.setItem(12, createActionCard(Material.CHEST_MINECART, "Join Room", "Browse active rooms and hop in."), event -> openRoomList(player));
-        session.setItem(14, createActionCard(Material.LIME_CONCRETE, "Start Room", game == null ? "Join a room before starting." : "Launch the current route immediately."), event -> {
+        session.setItem(12, createActionCard(Material.CHEST_MINECART, "加入房间", "浏览当前正在运行的房间并加入。"), event -> openRoomList(player));
+        session.setItem(14, createActionCard(Material.LIME_CONCRETE, "开始房间", game == null ? "请先加入房间再开始。" : "立即启动当前房间流程。"), event -> {
             if (game == null) {
-                player.sendMessage("§cYou are not in a room.");
+                player.sendMessage("§c你当前不在任何房间中。");
                 failFeedback(player);
                 return;
             }
@@ -106,10 +107,10 @@ public class GuiManager {
             successFeedback(player);
             refreshGame(game);
         });
-        session.setItem(16, createActionCard(Material.BARRIER, "Leave Room", game == null ? "You are currently outside any room." : "Drop out of the current room."), event -> {
+        session.setItem(16, createActionCard(Material.BARRIER, "离开房间", game == null ? "你当前不在任何房间中。" : "退出当前所在房间。"), event -> {
             Game currentGame = GameManager.getPlayerGame(player.getUniqueId());
             if (currentGame == null) {
-                player.sendMessage("§cYou are not in a room.");
+                player.sendMessage("§c你当前不在任何房间中。");
                 failFeedback(player);
                 return;
             }
@@ -118,22 +119,65 @@ public class GuiManager {
             openMainMenu(player);
         });
 
-        session.setItem(20, createFeatureCard(Material.COMPASS, "Stage Console", buildStageActionLore(game), false), event -> openCurrentStageGui(player));
-        session.setItem(22, createFeatureCard(Material.BOOK, "Build Ledger", buildBuildPreviewLore(game, player), false), event -> openBuildView(player));
-        session.setItem(24, createActionCard(Material.CLOCK, "Refresh", "Refresh all current room information."), event -> openMainMenu(player));
-        session.setItem(40, createBackCard("Close Terminal", "Close this menu."), event -> player.closeInventory());
+        session.setItem(20, createFeatureCard(Material.COMPASS, "阶段操作", buildStageActionLore(game), false), event -> openCurrentStageGui(player));
+        session.setItem(22, createFeatureCard(Material.BOOK, "当前构筑", buildBuildPreviewLore(game, player), false), event -> openBuildView(player));
+        session.setItem(24, createActionCard(Material.CLOCK, "刷新信息", "刷新当前房间与流程信息。"), event -> openMainMenu(player));
+        session.setItem(31, createActionCard(Material.IRON_SWORD, "选择职业", "打开职业选择界面。"), event -> openClassSelect(player));
+        session.setItem(40, createBackCard("关闭终端", "关闭当前菜单。"), event -> player.closeInventory());
+
+        player.openInventory(session.getInventory());
+    }
+
+    public void openClassSelect(Player player) {
+        Game game = GameManager.getPlayerGame(player.getUniqueId());
+        GuiSession session = createFramedSession(GuiType.CLASS_SELECT, MAIN_MENU_SIZE, "职业选择", Material.LIGHT_BLUE_STAINED_GLASS_PANE);
+
+        String currentClass = PlayerClassManager.getSelectedClass(player);
+        session.setItem(4, createFeatureCard(Material.NETHER_STAR, "当前职业", List.of(
+                "已选择：" + (currentClass.isBlank() ? "未选择" : currentClass),
+                "测试阶段仅开放一个职业供联调使用。"
+        ), true), null);
+
+        session.setItem(20, createFeatureCard(Material.IRON_SWORD, "测试职业", List.of(
+                "生命值：180",
+                "混乱抗性：135",
+                "混乱阈值：0.75",
+                "理智：50",
+                "点击后立即应用该职业。"
+        ), PlayerClassManager.TEST_CLASS_ID.equals(currentClass)), event -> {
+            if (!PlayerClassManager.applyClass(player, PlayerClassManager.TEST_CLASS_ID)) {
+                player.sendMessage("§c测试职业初始化失败，请检查职业配置。");
+                failFeedback(player);
+                return;
+            }
+            player.sendMessage("§a已选择职业：§f" + PlayerClassManager.TEST_CLASS_ID);
+            successFeedback(player);
+            if (game != null) {
+                refreshGame(game);
+            } else {
+                openMainMenu(player);
+            }
+        });
+
+        session.setItem(40, createBackCard("返回上级", "返回上一层菜单。"), event -> {
+            if (game != null) {
+                openRoomStatus(player);
+            } else {
+                openMainMenu(player);
+            }
+        });
 
         player.openInventory(session.getInventory());
     }
 
     public void openRoomList(Player player) {
-        GuiSession session = createFramedSession(GuiType.ROOM_LIST, PAGE_SIZE, "Room Registry", Material.GRAY_STAINED_GLASS_PANE);
+        GuiSession session = createFramedSession(GuiType.ROOM_LIST, PAGE_SIZE, "房间列表", Material.GRAY_STAINED_GLASS_PANE);
         List<String> activeRoomIds = new ArrayList<>(GameManager.getActiveGameIds());
         activeRoomIds.sort(String::compareTo);
 
-        session.setItem(4, createFeatureCard(Material.MAP, "Available Rooms", List.of(
-                "Rooms online: " + activeRoomIds.size(),
-                "Pick a room card below to join it."
+        session.setItem(4, createFeatureCard(Material.MAP, "可加入房间", List.of(
+                "当前房间数：" + activeRoomIds.size(),
+                "点击下方房间卡片即可加入。"
         ), true), null);
 
         int[] roomSlots = {
@@ -155,24 +199,24 @@ public class GuiManager {
             RoundManager roundManager = listedGame.getRoundManager();
             session.setItem(roomSlots[roomIndex], createFeatureCard(
                     materialForPhase(roundManager.getCurrentRoomType()),
-                    "Room " + roomId,
+                    "房间 " + roomId,
                     List.of(
-                            "State: " + listedGame.getGameState(),
-                            "Players: " + listedGame.getTotalPlayerCount() + " total",
-                            "Round: " + roundManager.getCurrentRound() + "/5",
-                            "Phase: " + roundManager.getCurrentRoomType(),
-                            "Objective: " + roundManager.getStatusHint()
+                            "状态：" + listedGame.getGameState(),
+                            "人数：" + listedGame.getTotalPlayerCount(),
+                            "回合：" + roundManager.getCurrentRound() + "/5",
+                            "阶段：" + roundManager.getCurrentRoomType(),
+                            "目标：" + roundManager.getStatusHint()
                     ),
                     false
             ), event -> {
                 if (GameManager.getPlayerGame(player.getUniqueId()) != null) {
-                    player.sendMessage("§cLeave your current room before joining another one.");
+                    player.sendMessage("§c请先离开当前房间，再加入其他房间。");
                     failFeedback(player);
                     return;
                 }
                 Game targetGame = GameManager.getGame(roomId);
                 if (targetGame == null) {
-                    player.sendMessage("§cThat room no longer exists.");
+                    player.sendMessage("§c该房间已不存在。");
                     failFeedback(player);
                     openRoomList(player);
                     return;
@@ -185,67 +229,67 @@ public class GuiManager {
         }
 
         if (activeRoomIds.isEmpty()) {
-            session.setItem(22, createFeatureCard(Material.BARRIER, "No Active Rooms", List.of(
-                    "The registry is empty right now.",
-                    "Create a room from the terminal."
+            session.setItem(22, createFeatureCard(Material.BARRIER, "暂无活跃房间", List.of(
+                    "当前没有可加入的房间。",
+                    "请先在主菜单中创建房间。"
             ), false), null);
         }
 
-        session.setItem(49, createBackCard("Return", "Go back to the terminal menu."), event -> openMainMenu(player));
+        session.setItem(49, createBackCard("返回终端", "返回主菜单。"), event -> openMainMenu(player));
         player.openInventory(session.getInventory());
     }
 
     public void openRoomStatus(Player player) {
-        GuiSession session = createFramedSession(GuiType.ROOM_STATUS, PAGE_SIZE, "Room Status", Material.BLUE_STAINED_GLASS_PANE);
+        GuiSession session = createFramedSession(GuiType.ROOM_STATUS, PAGE_SIZE, "房间状态", Material.BLUE_STAINED_GLASS_PANE);
         Game game = GameManager.getPlayerGame(player.getUniqueId());
 
         if (game == null) {
-            session.setItem(22, createFeatureCard(Material.BARRIER, "No Active Room", List.of(
-                    "You are currently outside any room.",
-                    "Create or join one from the terminal."
+            session.setItem(22, createFeatureCard(Material.BARRIER, "当前无房间", List.of(
+                    "你目前不在任何房间中。",
+                    "请从主菜单创建或加入房间。"
             ), false), null);
-            session.setItem(49, createBackCard("Return", "Go back to the terminal menu."), event -> openMainMenu(player));
+            session.setItem(49, createBackCard("返回终端", "返回主菜单。"), event -> openMainMenu(player));
             player.openInventory(session.getInventory());
             return;
         }
 
         RoundManager roundManager = game.getRoundManager();
-        session.setItem(4, createFeatureCard(Material.MAP, "Room " + game.getGameId(), List.of(
-                "State: " + game.getGameState(),
-                "Alive: " + game.getActivePlayerCount(),
-                "Dead: " + game.getDeadPlayerCount(),
-                "Round: " + roundManager.getCurrentRound() + "/5",
-                "Phase: " + roundManager.getCurrentRoomType()
+        session.setItem(4, createFeatureCard(Material.MAP, "房间 " + game.getGameId(), List.of(
+                "状态：" + game.getGameState(),
+                "存活：" + game.getActivePlayerCount(),
+                "阵亡：" + game.getDeadPlayerCount(),
+                "回合：" + roundManager.getCurrentRound() + "/5",
+                "阶段：" + roundManager.getCurrentRoomType()
         ), true), null);
-        session.setItem(13, createFeatureCard(materialForPhase(roundManager.getCurrentRoomType()), "Current Objective", buildObjectiveLore(game), false), null);
-        session.setItem(22, createFeatureCard(Material.HEART_OF_THE_SEA, "Route Flow", List.of(
-                "Ready: " + progressText(roundManager.getProceedReadyCount(), game.getActivePlayerCount()),
-                "Rewards pending: " + roundManager.getPendingRewardPlayerCount(),
-                "Vote timer: " + roundManager.getVoteCountdownRemaining() + "s",
-                "Room timer: " + roundManager.getReadyCountdownRemaining() + "s"
+        session.setItem(13, createFeatureCard(materialForPhase(roundManager.getCurrentRoomType()), "当前目标", buildObjectiveLore(game), false), null);
+        session.setItem(22, createFeatureCard(Material.HEART_OF_THE_SEA, "流程进度", List.of(
+                "准备进度：" + progressText(roundManager.getProceedReadyCount(), game.getActivePlayerCount()),
+                "未选奖励：" + roundManager.getPendingRewardPlayerCount(),
+                "投票倒计时：" + roundManager.getVoteCountdownRemaining() + "秒",
+                "房间倒计时：" + roundManager.getReadyCountdownRemaining() + "秒"
         ), false), null);
 
-        session.setItem(29, createActionCard(Material.LIME_CONCRETE, "Start Room", "Launch the room if it is ready."), event -> {
+        session.setItem(29, createActionCard(Material.LIME_CONCRETE, "开始房间", "在房间满足条件时启动流程。"), event -> {
             game.start();
             successFeedback(player);
             refreshGame(game);
         });
-        session.setItem(31, createActionCard(Material.COMPASS, "Open Stage Console", "Jump to the active stage interaction."), event -> openCurrentStageGui(player));
-        session.setItem(33, createActionCard(Material.BOOK, "Open Build Ledger", "Inspect relics and run bonuses."), event -> openBuildView(player));
-        session.setItem(40, createActionCard(Material.BARRIER, "Leave Room", "Exit the current room immediately."), event -> {
+        session.setItem(31, createActionCard(Material.COMPASS, "打开阶段界面", "进入当前阶段对应的交互界面。"), event -> openCurrentStageGui(player));
+        session.setItem(33, createActionCard(Material.BOOK, "查看构筑", "查看当前局内奖励与饰品。"), event -> openBuildView(player));
+        session.setItem(40, createActionCard(Material.BARRIER, "离开房间", "立即退出当前房间。"), event -> {
             game.playerLeave(player);
             successFeedback(player);
             openMainMenu(player);
         });
-        session.setItem(49, createBackCard("Return", "Go back to the terminal menu."), event -> openMainMenu(player));
+        session.setItem(49, createBackCard("返回终端", "返回主菜单。"), event -> openMainMenu(player));
 
         if (roundManager.isPeacefulRoom() && !roundManager.isRewardPhase()) {
             session.setItem(24, createActionCard(
                     roundManager.hasPlayerProceeded(player.getUniqueId()) ? Material.LIME_DYE : Material.YELLOW_DYE,
-                    roundManager.hasPlayerProceeded(player.getUniqueId()) ? "Ready Locked" : "Mark Ready",
+                    roundManager.hasPlayerProceeded(player.getUniqueId()) ? "已准备" : "标记准备",
                     roundManager.hasPlayerProceeded(player.getUniqueId())
-                            ? "You are already queued for departure."
-                            : "Confirm that you are ready to leave this room."
+                            ? "你已经标记为准备推进。"
+                            : "确认你已完成当前房间内容并准备前进。"
             ), event -> {
                 roundManager.setPlayerProceed(player);
                 successFeedback(player);
@@ -254,11 +298,11 @@ public class GuiManager {
         }
 
         if (roundManager.isRewardPhase()) {
-            session.setItem(24, createActionCard(Material.AMETHYST_SHARD, "Open Reward Draft", "Choose your current room reward."), event -> openRewardMenu(player));
+            session.setItem(24, createActionCard(Material.AMETHYST_SHARD, "打开奖励界面", "选择当前房间的奖励。"), event -> openRewardMenu(player));
         } else if (roundManager.isShopRoom()) {
-            session.setItem(24, createActionCard(Material.GOLD_INGOT, "Open Supply Counter", "Inspect current shop services."), event -> openShopMenu(player));
+            session.setItem(24, createActionCard(Material.GOLD_INGOT, "打开商店", "查看当前商店服务。"), event -> openShopMenu(player));
         } else if (roundManager.isEventRoom() && !roundManager.isEventResolved()) {
-            session.setItem(24, createActionCard(Material.WRITABLE_BOOK, "Open Event Choice", "Resolve the current abnormality event."), event -> openEventMenu(player));
+            session.setItem(24, createActionCard(Material.WRITABLE_BOOK, "打开事件界面", "处理当前异常事件。"), event -> openEventMenu(player));
         }
 
         populatePartyPanel(session, game);
@@ -266,23 +310,23 @@ public class GuiManager {
     }
 
     public void openBuildView(Player player) {
-        GuiSession session = createFramedSession(GuiType.BUILD_VIEW, PAGE_SIZE, "Run Build Ledger", Material.PURPLE_STAINED_GLASS_PANE);
+        GuiSession session = createFramedSession(GuiType.BUILD_VIEW, PAGE_SIZE, "当前构筑", Material.PURPLE_STAINED_GLASS_PANE);
         Game game = GameManager.getPlayerGame(player.getUniqueId());
 
         if (game == null) {
-            session.setItem(22, createFeatureCard(Material.BARRIER, "No Build Data", List.of(
-                    "Join a room to start building a run."
+            session.setItem(22, createFeatureCard(Material.BARRIER, "暂无构筑信息", List.of(
+                    "加入房间后才会开始记录构筑。"
             ), false), null);
-            session.setItem(49, createBackCard("Return", "Go back to the terminal menu."), event -> openMainMenu(player));
+            session.setItem(49, createBackCard("返回终端", "返回主菜单。"), event -> openMainMenu(player));
             player.openInventory(session.getInventory());
             return;
         }
 
         List<String> buildSummary = game.getBuildSummary(player.getUniqueId());
-        session.setItem(4, createFeatureCard(Material.BOOK, "Build Overview", List.of(
-                "Room: " + game.getGameId(),
-                "Round: " + game.getRoundManager().getCurrentRound() + "/5",
-                "Phase: " + game.getRoundManager().getCurrentRoomType()
+        session.setItem(4, createFeatureCard(Material.BOOK, "构筑概览", List.of(
+                "房间：" + game.getGameId(),
+                "回合：" + game.getRoundManager().getCurrentRound() + "/5",
+                "阶段：" + game.getRoundManager().getCurrentRoomType()
         ), true), null);
 
         int[] detailSlots = {
@@ -296,7 +340,7 @@ public class GuiManager {
             session.setItem(detailSlots[index], createFeatureCard(materialForBuildLine(line), summarizeBuildLine(line), splitBuildLine(line), false), null);
         }
 
-        session.setItem(49, createBackCard("Return", "Go back to room status."), event -> openRoomStatus(player));
+        session.setItem(49, createBackCard("返回房间", "返回房间状态页。"), event -> openRoomStatus(player));
         player.openInventory(session.getInventory());
     }
 
@@ -336,13 +380,13 @@ public class GuiManager {
         }
 
         RoundManager roundManager = game.getRoundManager();
-        GuiSession session = createFramedSession(GuiType.VOTE, MAIN_MENU_SIZE, "Route Vote", Material.ORANGE_STAINED_GLASS_PANE);
-        session.setItem(4, createFeatureCard(Material.CLOCK, "Vote Window", List.of(
-                "Round: " + roundManager.getCurrentRound() + "/5",
-                "Time left: " + roundManager.getVoteCountdownRemaining() + "s",
-                "Your vote: " + formatVote(roundManager.getPlayerVote(player.getUniqueId()))
+        GuiSession session = createFramedSession(GuiType.VOTE, MAIN_MENU_SIZE, "节点投票", Material.ORANGE_STAINED_GLASS_PANE);
+        session.setItem(4, createFeatureCard(Material.CLOCK, "投票窗口", List.of(
+                "回合：" + roundManager.getCurrentRound() + "/5",
+                "剩余时间：" + roundManager.getVoteCountdownRemaining() + "秒",
+                "你的选择：" + formatVote(roundManager.getPlayerVote(player.getUniqueId()))
         ), true), null);
-        session.setItem(40, createBackCard("Return", "Go back to room status."), event -> openRoomStatus(player));
+        session.setItem(40, createBackCard("返回房间", "返回房间状态页。"), event -> openRoomStatus(player));
 
         List<Map.Entry<Integer, StageTemplate>> choices = new ArrayList<>(roundManager.getNodeChoices().entrySet());
         choices.sort(Map.Entry.comparingByKey());
@@ -353,13 +397,13 @@ public class GuiManager {
             StageTemplate template = entry.getValue();
             session.setItem(choiceSlots[index], createFeatureCard(
                     materialForStage(template.stageType()),
-                    "Node " + choiceIndex + " " + stageLabel(template.stageType()),
+                    "节点 " + choiceIndex + " " + stageLabel(template.stageType()),
                     List.of(
-                            "Map: " + template.mapName(),
-                            "Stage id: " + template.stageId(),
-                            "Reward focus: " + rewardFocus(template.stageType()),
-                            "Votes: " + roundManager.getVoteCount(choiceIndex),
-                            "Click to vote for this route."
+                            "地图：" + template.mapName(),
+                            "关卡 ID：" + template.stageId(),
+                            "奖励倾向：" + rewardFocus(template.stageType()),
+                            "当前票数：" + roundManager.getVoteCount(choiceIndex),
+                            "点击后为该路线投票。"
                     ),
                     roundManager.getPlayerVote(player.getUniqueId()) == choiceIndex
             ), event -> {
@@ -380,13 +424,13 @@ public class GuiManager {
         }
 
         RoundManager roundManager = game.getRoundManager();
-        GuiSession session = createFramedSession(GuiType.REWARD, MAIN_MENU_SIZE, "Reward Draft", Material.AMETHYST_BLOCK);
-        session.setItem(4, createFeatureCard(Material.AMETHYST_CLUSTER, "Selection Status", List.of(
-                "Pending players: " + roundManager.getPendingRewardPlayerCount(),
-                "You locked in: " + yesNo(roundManager.isRewardResolved(player.getUniqueId())),
-                "Room phase: " + roundManager.getCurrentRoomType()
+        GuiSession session = createFramedSession(GuiType.REWARD, MAIN_MENU_SIZE, "奖励选择", Material.AMETHYST_BLOCK);
+        session.setItem(4, createFeatureCard(Material.AMETHYST_CLUSTER, "选择状态", List.of(
+                "未完成玩家：" + roundManager.getPendingRewardPlayerCount(),
+                "是否锁定：" + yesNo(roundManager.isRewardResolved(player.getUniqueId())),
+                "当前阶段：" + roundManager.getCurrentRoomType()
         ), true), null);
-        session.setItem(40, createBackCard("Return", "Go back to room status."), event -> openRoomStatus(player));
+        session.setItem(40, createBackCard("返回房间", "返回房间状态页。"), event -> openRoomStatus(player));
 
         List<RewardOption> rewardOptions = roundManager.getPendingRewardOptions(player.getUniqueId());
         int[] rewardSlots = {20, 22, 24};
@@ -397,10 +441,10 @@ public class GuiManager {
                     materialForReward(rewardOption),
                     rewardOption.name(),
                     List.of(
-                            "Type: " + rewardOption.rewardType(),
-                            "Rarity: " + rewardOption.rarity(),
+                            "类型：" + formatRewardType(rewardOption.rewardType()),
+                            "稀有度：" + formatRarity(rewardOption.rarity()),
                             rewardOption.description(),
-                            "Click to lock this reward."
+                            "点击后锁定这个奖励。"
                     ),
                     roundManager.isRewardResolved(player.getUniqueId())
             ), event -> {
@@ -411,7 +455,7 @@ public class GuiManager {
         }
 
         if (roundManager.isShopRoom()) {
-            session.setItem(31, createActionCard(Material.GOLD_INGOT, "Open Supply Counter", "Inspect current shop services."), event -> openShopMenu(player));
+            session.setItem(31, createActionCard(Material.GOLD_INGOT, "打开商店", "查看当前商店服务。"), event -> openShopMenu(player));
         }
 
         player.openInventory(session.getInventory());
@@ -426,14 +470,14 @@ public class GuiManager {
 
         RoundManager roundManager = game.getRoundManager();
         RewardPoolDefinition shopPool = RewardManager.getPool("shop_room");
-        GuiSession session = createFramedSession(GuiType.SHOP, PAGE_SIZE, "Supply Counter", Material.YELLOW_STAINED_GLASS_PANE);
+        GuiSession session = createFramedSession(GuiType.SHOP, PAGE_SIZE, "商店补给", Material.YELLOW_STAINED_GLASS_PANE);
 
-        session.setItem(4, createFeatureCard(Material.GOLD_BLOCK, "Supply Status", List.of(
-                "Purchased: " + yesNo(roundManager.hasPurchasedShopService(player.getUniqueId())),
-                "Rewards pending: " + roundManager.getPendingRewardPlayerCount(),
-                "Ready progress: " + progressText(roundManager.getProceedReadyCount(), game.getActivePlayerCount())
+        session.setItem(4, createFeatureCard(Material.GOLD_BLOCK, "商店状态", List.of(
+                "是否已购买：" + yesNo(roundManager.hasPurchasedShopService(player.getUniqueId())),
+                "未选奖励：" + roundManager.getPendingRewardPlayerCount(),
+                "准备进度：" + progressText(roundManager.getProceedReadyCount(), game.getActivePlayerCount())
         ), true), null);
-        session.setItem(49, createBackCard("Return", "Go back to room status."), event -> openRoomStatus(player));
+        session.setItem(49, createBackCard("返回房间", "返回房间状态页。"), event -> openRoomStatus(player));
 
         if (shopPool != null) {
             int[] serviceSlots = {19, 21, 23, 25, 31};
@@ -452,8 +496,8 @@ public class GuiManager {
                         serviceDefinition.name(),
                         List.of(
                                 serviceDefinition.description(),
-                                "Offer id: " + serviceDefinition.id(),
-                                purchased ? "Already claimed for this room." : "Click to claim this service."
+                                "商品 ID：" + serviceDefinition.id(),
+                                purchased ? "当前房间已购买过该商品。" : "点击后购买该服务。"
                         ),
                         false
                 ), event -> {
@@ -470,7 +514,7 @@ public class GuiManager {
         }
 
         if (roundManager.isRewardPhase()) {
-            session.setItem(40, createActionCard(Material.AMETHYST_SHARD, "Open Reward Draft", "Return to your reward selection."), event -> openRewardMenu(player));
+            session.setItem(40, createActionCard(Material.AMETHYST_SHARD, "打开奖励界面", "返回奖励选择页。"), event -> openRewardMenu(player));
         }
 
         player.openInventory(session.getInventory());
@@ -485,33 +529,33 @@ public class GuiManager {
 
         RoundManager roundManager = game.getRoundManager();
         EventDefinition eventDefinition = EventConfigManager.getEvent(roundManager.getCurrentEventId());
-        GuiSession session = createFramedSession(GuiType.EVENT, MAIN_MENU_SIZE, "Abnormality Event", Material.RED_STAINED_GLASS_PANE);
+        GuiSession session = createFramedSession(GuiType.EVENT, MAIN_MENU_SIZE, "异常事件", Material.RED_STAINED_GLASS_PANE);
 
         List<String> introLore = new ArrayList<>();
         if (eventDefinition != null) {
             introLore.addAll(buildWrappedLore(eventDefinition.intro()));
         } else {
-            introLore.add("No event data is available.");
+            introLore.add("当前没有读取到事件数据。");
         }
-        introLore.add("Time left: " + roundManager.getReadyCountdownRemaining() + "s");
-        session.setItem(4, createFeatureCard(Material.WRITABLE_BOOK, "Current Event", introLore, true), null);
-        session.setItem(40, createBackCard("Return", "Go back to room status."), event -> openRoomStatus(player));
+        introLore.add("剩余时间：" + roundManager.getReadyCountdownRemaining() + "秒");
+        session.setItem(4, createFeatureCard(Material.WRITABLE_BOOK, "当前事件", introLore, true), null);
+        session.setItem(40, createBackCard("返回房间", "返回房间状态页。"), event -> openRoomStatus(player));
 
-        String optionOne = eventDefinition != null ? eventDefinition.optionOne() : "Leave carefully";
-        String optionTwo = eventDefinition != null ? eventDefinition.optionTwo() : "Investigate";
-        session.setItem(20, createFeatureCard(Material.LIME_WOOL, "Option 1", List.of(
+        String optionOne = eventDefinition != null ? eventDefinition.optionOne() : "谨慎离开";
+        String optionTwo = eventDefinition != null ? eventDefinition.optionTwo() : "继续调查";
+        session.setItem(20, createFeatureCard(Material.LIME_WOOL, "选项一", List.of(
                 optionOne,
-                "Safer default route.",
-                "Click to confirm this choice."
+                "更稳妥的默认路线。",
+                "点击确认该选择。"
         ), false), event -> {
             roundManager.handleEventChoice(player, "1");
             successFeedback(player);
             refreshGame(game);
         });
-        session.setItem(24, createFeatureCard(Material.ORANGE_WOOL, "Option 2", List.of(
+        session.setItem(24, createFeatureCard(Material.ORANGE_WOOL, "选项二", List.of(
                 optionTwo,
-                "Higher variance route.",
-                "Click to confirm this choice."
+                "波动更大的路线。",
+                "点击确认该选择。"
         ), false), event -> {
             roundManager.handleEventChoice(player, "2");
             successFeedback(player);
@@ -636,6 +680,7 @@ public class GuiManager {
     private void openByType(Player player, GuiType guiType) {
         switch (guiType) {
             case MAIN_MENU -> openMainMenu(player);
+            case CLASS_SELECT -> openClassSelect(player);
             case ROOM_LIST -> openRoomList(player);
             case ROOM_STATUS -> openRoomStatus(player);
             case BUILD_VIEW -> openBuildView(player);
@@ -668,8 +713,8 @@ public class GuiManager {
         List<String> activeNames = game.getActiveOnlinePlayers().stream().map(Player::getName).sorted().toList();
         List<String> deadNames = game.getDeadOnlinePlayers().stream().map(Player::getName).sorted().toList();
 
-        session.setItem(37, createFeatureCard(Material.LIME_DYE, "Active Crew", buildPlayerListLore(activeNames, "No active players."), false), null);
-        session.setItem(38, createFeatureCard(Material.GRAY_DYE, "Fallen Crew", buildPlayerListLore(deadNames, "No fallen players."), false), null);
+        session.setItem(37, createFeatureCard(Material.LIME_DYE, "存活队员", buildPlayerListLore(activeNames, "当前没有存活玩家。"), false), null);
+        session.setItem(38, createFeatureCard(Material.GRAY_DYE, "阵亡队员", buildPlayerListLore(deadNames, "当前没有阵亡玩家。"), false), null);
     }
 
     private List<String> buildPlayerListLore(List<String> names, String emptyLine) {
@@ -682,10 +727,10 @@ public class GuiManager {
     private ItemStack createMenuItem() {
         ItemStack itemStack = new ItemStack(resolveMenuMaterial());
         ItemMeta itemMeta = itemStack.getItemMeta();
-        itemMeta.setDisplayName("§6Lunar Terminal");
+        itemMeta.setDisplayName("§6边狱终端");
         itemMeta.setLore(List.of(
-                "§7Right click to open the route terminal.",
-                "§8Main menu, room status, stage actions."
+                "§7右键打开整局流程主菜单。",
+                "§8可查看房间、阶段、构筑与事件。"
         ));
         itemMeta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
         itemMeta.getPersistentDataContainer().set(menuItemKey, PersistentDataType.BYTE, (byte) 1);
@@ -750,26 +795,26 @@ public class GuiManager {
     private List<String> buildStatusLore(Game game) {
         if (game == null) {
             return List.of(
-                    "No room joined.",
-                    "Create one or browse the registry."
+                    "当前未加入任何房间。",
+                    "请先创建房间或浏览房间列表。"
             );
         }
 
         RoundManager roundManager = game.getRoundManager();
         return List.of(
-                "Room: " + game.getGameId(),
-                "State: " + game.getGameState(),
-                "Crew: " + game.getActivePlayerCount() + " active / " + game.getDeadPlayerCount() + " fallen",
-                "Round: " + roundManager.getCurrentRound() + "/5",
-                "Phase: " + roundManager.getCurrentRoomType()
+                "房间：" + game.getGameId(),
+                "状态：" + game.getGameState(),
+                "队伍：" + game.getActivePlayerCount() + " 存活 / " + game.getDeadPlayerCount() + " 阵亡",
+                "回合：" + roundManager.getCurrentRound() + "/5",
+                "阶段：" + roundManager.getCurrentRoomType()
         );
     }
 
     private List<String> buildBuildPreviewLore(Game game, Player player) {
         if (game == null) {
             return List.of(
-                    "No active build yet.",
-                    "Join a room to begin a run."
+                    "当前还没有构筑信息。",
+                    "加入房间后开始记录本局成长。"
             );
         }
 
@@ -779,7 +824,7 @@ public class GuiManager {
             preview.add(summary.get(index));
         }
         if (summary.size() > 3) {
-            preview.add("Open the ledger for full details.");
+            preview.add("打开构筑页查看完整详情。");
         }
         return preview;
     }
@@ -787,60 +832,60 @@ public class GuiManager {
     private List<String> buildStageActionLore(Game game) {
         if (game == null) {
             return List.of(
-                    "No active room.",
-                    "Join or create one first."
+                    "当前没有活跃房间。",
+                    "请先创建房间或加入房间。"
             );
         }
 
         RoundManager roundManager = game.getRoundManager();
         if (roundManager.isVotingPhase()) {
             return List.of(
-                    "Vote is live.",
-                    "Open the route chooser."
+                    "当前正在投票。",
+                    "打开节点投票界面。"
             );
         }
         if (roundManager.isRewardPhase()) {
             return List.of(
-                    "Rewards are waiting.",
-                    "Open the reward draft."
+                    "当前有待领取奖励。",
+                    "打开奖励选择界面。"
             );
         }
         if (roundManager.isEventRoom() && !roundManager.isEventResolved()) {
             return List.of(
-                    "Event is unresolved.",
-                    "Open the event console."
+                    "当前事件尚未处理。",
+                    "打开事件选择界面。"
             );
         }
         if (roundManager.isShopRoom()) {
             return List.of(
-                    "Shop services are available.",
-                    "Open the supply counter."
+                    "当前可使用商店服务。",
+                    "打开商店补给界面。"
             );
         }
         return List.of(
-                "Open the current room status.",
-                "Use this to inspect the live phase."
+                "打开当前房间状态。",
+                "用于查看当前进行中的阶段。"
         );
     }
 
     private List<String> buildObjectiveLore(Game game) {
         RoundManager roundManager = game.getRoundManager();
         List<String> lore = new ArrayList<>();
-        lore.add("Hint: " + roundManager.getStatusHint());
-        lore.add("Round: " + roundManager.getCurrentRound() + "/5");
-        lore.add("Phase key: " + roundManager.getCurrentRoomType());
+        lore.add("提示：" + roundManager.getStatusHint());
+        lore.add("回合：" + roundManager.getCurrentRound() + "/5");
+        lore.add("阶段键：" + roundManager.getCurrentRoomType());
         if (roundManager.isVotingPhase()) {
-            lore.add("Timer: " + roundManager.getVoteCountdownRemaining() + "s");
+            lore.add("倒计时：" + roundManager.getVoteCountdownRemaining() + "秒");
         } else if (roundManager.isPeacefulRoom()) {
-            lore.add("Ready: " + progressText(roundManager.getProceedReadyCount(), game.getActivePlayerCount()));
-            lore.add("Timer: " + roundManager.getReadyCountdownRemaining() + "s");
+            lore.add("准备进度：" + progressText(roundManager.getProceedReadyCount(), game.getActivePlayerCount()));
+            lore.add("倒计时：" + roundManager.getReadyCountdownRemaining() + "秒");
         }
         return lore;
     }
 
     private List<String> buildWrappedLore(String input) {
         if (input == null || input.isBlank()) {
-            return List.of("No details.");
+            return List.of("暂无说明。");
         }
         return Arrays.stream(input.split("\\n"))
                 .flatMap(line -> wrapLine(line, 34).stream())
@@ -940,17 +985,17 @@ public class GuiManager {
     }
 
     private String stageLabel(String stageType) {
-        return "[" + stageType.toUpperCase() + "]";
+        return "【" + formatStageType(stageType) + "】";
     }
 
     private String rewardFocus(String stageType) {
         return switch (stageType.toUpperCase()) {
-            case "ELITE" -> "Higher quality reward pool";
-            case "SHOP" -> "Service claim plus reward draft";
-            case "REST" -> "Recovery and utility reward";
-            case "EVENT" -> "Risk reward branch";
-            case "BOSS" -> "Major clear reward";
-            default -> "Standard room reward";
+            case "ELITE" -> "高品质奖励池";
+            case "SHOP" -> "商店服务与奖励";
+            case "REST" -> "恢复与辅助奖励";
+            case "EVENT" -> "高风险高收益";
+            case "BOSS" -> "大关卡结算奖励";
+            default -> "标准战斗奖励";
         };
     }
 
@@ -966,11 +1011,42 @@ public class GuiManager {
     }
 
     private String yesNo(boolean value) {
-        return value ? "YES" : "NO";
+        return value ? "是" : "否";
     }
 
     private String formatVote(int vote) {
-        return vote > 0 ? "Node " + vote : "NONE";
+        return vote > 0 ? "节点 " + vote : "未投票";
+    }
+
+    private String formatRewardType(RewardOption.RewardType rewardType) {
+        return switch (rewardType) {
+            case RELIC -> "饰品";
+            case SERVICE -> "服务";
+        };
+    }
+
+    private String formatRarity(String rarity) {
+        return switch (rarity.toUpperCase()) {
+            case "COMMON" -> "普通";
+            case "UNCOMMON" -> "优秀";
+            case "RARE" -> "稀有";
+            default -> rarity;
+        };
+    }
+
+    private String formatStageType(String stageType) {
+        if (stageType == null) {
+            return "未知";
+        }
+        return switch (stageType.toUpperCase()) {
+            case "NORMAL" -> "普通战";
+            case "ELITE" -> "精英战";
+            case "SHOP" -> "商店";
+            case "REST" -> "休息";
+            case "EVENT" -> "事件";
+            case "BOSS" -> "Boss";
+            default -> stageType;
+        };
     }
 
     private void successFeedback(Player player) {
