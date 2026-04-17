@@ -29,7 +29,7 @@ public final class EventConfigManager {
         YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
         ConfigurationSection section = config.getConfigurationSection("events");
         if (section == null) {
-            loadMessages.add("No event definitions found in events.yml.");
+            loadMessages.add("events.yml 中未找到事件定义。");
             return List.copyOf(loadMessages);
         }
 
@@ -41,13 +41,13 @@ public final class EventConfigManager {
 
             eventDefinitions.put(eventId, new EventDefinition(
                     eventId,
-                    eventSection.getString("intro", "A strange event blocks the road."),
-                    eventSection.getString("option_1", "Leave carefully"),
-                    eventSection.getString("option_2", "Investigate")
+                    eventSection.getString("intro", "前方出现了一段尚未定义的异常记录。"),
+                    eventSection.getString("option_1", "谨慎离开"),
+                    eventSection.getString("option_2", "继续调查")
             ));
         }
 
-        loadMessages.add("Loaded " + eventDefinitions.size() + " event definitions.");
+        loadMessages.add("已加载 " + eventDefinitions.size() + " 个事件定义。");
         return List.copyOf(loadMessages);
     }
 

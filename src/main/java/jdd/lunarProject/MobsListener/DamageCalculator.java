@@ -18,16 +18,16 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 
-import java.util.concurrent.ThreadLocalRandom;
-
-import static jdd.lunarProject.MobsListener.MythicDamageListener.CRIT_CHANCE;
-import static jdd.lunarProject.MobsListener.MythicDamageListener.CRIT_DAMAGE_MULTIPLIER;
-
 public class DamageCalculator implements Listener {
+    private static final double FIRST_MULTIPLIER_FLOOR = 0.05;
+    private static final double SECOND_MULTIPLIER_FLOOR = 0.0;
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onGlobalVanillaAttack(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player player)) {
+            return;
+        }
+        if (CombatVariableUtil.isStatusDamage(player)) {
             return;
         }
 
@@ -61,78 +61,60 @@ public class DamageCalculator implements Listener {
     public void onEntityDamage(EntityDamageByEntityEvent event) {
         Entity attacker = event.getDamager();
         Entity victim = event.getEntity();
-        String attackSin = getAttackSin(attacker);
-        String attackType = getAttackType(attacker);
-        boolean statusDamage = CombatVariableUtil.isStatusDamage(attacker);
+        CombatVariableUtil.PendingSelfStatusHit pendingSelfStatusHit =
+                attacker.getUniqueId().equals(victim.getUniqueId())
+                        ? CombatVariableUtil.getPendingSelfStatusHit(attacker)
+                        : null;
+
+        String attackSin = pendingSelfStatusHit != null
+                ? pendingSelfStatusHit.attackSin()
+                : getAttackSin(attacker);
+        String attackType = pendingSelfStatusHit != null
+                ? pendingSelfStatusHit.attackType()
+                : getAttackType(attacker);
+        boolean statusDamage = pendingSelfStatusHit != null || CombatVariableUtil.isStatusDamage(attacker);
 
         if (attackSin == null || attackType == null) {
             return;
         }
 
-        double sinRes = clampResistance(getEntityResistance(victim, attackSin));
-        double typeRes = clampResistance(getEntityResistance(victim, attackType));
-
-        int staggerStage = getStaggerStage(victim);
-        if (staggerStage == 1) {
-            sinRes = Math.max(sinRes, 1.5);
-            typeRes = Math.max(typeRes, 1.5);
-        } else if (staggerStage == 2) {
-            sinRes = Math.max(sinRes, 2.0);
-            typeRes = Math.max(typeRes, 2.0);
-        }
-
-        double resMultiplier = Math.max(0.1, 1.0 + (sinRes - 1.0) + (typeRes - 1.0));
-        int pureFragility = getEntityFragility(victim, "pure_fragility");
-        int typeFragility = getEntityFragility(victim, attackType + "_fragility");
-        int sinFragility = getEntityFragility(victim, attackSin + "_fragility");
-
-        if (attacker instanceof Player playerAttacker) {
-            Game attackerGame = GameManager.getPlayerGame(playerAttacker.getUniqueId());
-            if (attackerGame != null && attackerGame.isRunning()) {
-                pureFragility += (int) Math.round(attackerGame.getModifier(playerAttacker.getUniqueId(), BuildModifierType.FRAGILITY_BONUS));
-            }
-        }
-
-        double fragilityMultiplier = 1.0 + (pureFragility * 0.1) + (typeFragility * 0.1) + (sinFragility * 0.1);
-
-        double baseDamage = event.getDamage();
+        double baseDamage = pendingSelfStatusHit != null
+                ? pendingSelfStatusHit.amount()
+                : event.getDamage();
         if (CombatVariableUtil.isIndependentDot(attackType)) {
-            event.setDamage(baseDamage);
-            YellowBarUtil.DamageResult yellowResult = YellowBarUtil.applyDamage(victim, baseDamage);
+            double independentDamage = adjustIndependentDotDamage(victim, attackType, baseDamage);
+            event.setDamage(independentDamage);
+            YellowBarUtil.DamageResult yellowResult = YellowBarUtil.applyDamage(victim, independentDamage);
             if (yellowResult.broken()) {
                 LunarProject.getInstance().getStaggerManager().triggerYellowBarBreak(victim);
             }
-            DamageIndicatorUtil.spawnIndicator(targetLocation(victim), baseDamage, false, attackType, statusDamage, yellowResult.broken());
+            DamageIndicatorUtil.spawnIndicator(targetLocation(victim), independentDamage, false, attackType, statusDamage, yellowResult.broken());
             clearAttackTags(attacker);
-            logCombat("dot damage=" + baseDamage + " yellow=" + String.format("%.2f", yellowResult.currentValue()));
+            logCombat("dot damage=" + independentDamage + " yellow=" + String.format("%.2f", yellowResult.currentValue()));
             return;
         }
 
-        double finalDamage = baseDamage * resMultiplier * fragilityMultiplier;
-        if (attacker instanceof Player playerAttacker) {
-            Game attackerGame = GameManager.getPlayerGame(playerAttacker.getUniqueId());
-            if (attackerGame != null && attackerGame.isRunning()) {
-                finalDamage *= Math.max(0.1, 1.0 + attackerGame.getModifier(playerAttacker.getUniqueId(), BuildModifierType.DAMAGE_DEALT_MULT));
-            }
-        }
-        boolean isCrit = !statusDamage && ThreadLocalRandom.current().nextDouble() < CRIT_CHANCE;
-        if (isCrit) {
-            finalDamage *= CRIT_DAMAGE_MULTIPLIER;
+        PoiseCritManager.PendingCrit pendingCrit = PoiseCritManager.consumePendingCrit(attacker);
+        boolean isCrit = pendingCrit.critical();
+        double critMultiplier = pendingCrit.multiplier();
+        DamageBreakdown breakdown = buildDamageBreakdown(
+                attacker,
+                victim,
+                attackType,
+                attackSin,
+                statusDamage,
+                isCrit,
+                critMultiplier
+        );
+
+        double finalDamage = baseDamage * breakdown.firstCategoryMultiplier() * breakdown.secondCategoryMultiplier();
+        if (isCrit && !statusDamage) {
             MythicDamageListener.playCriticalFeedback(victim);
         }
 
         Location targetLocation = victim.getLocation();
         if (finalDamage != 0.0) {
-            // Distinguish normal hits, sin/status hits, dot hits and yellow-bar breaks
-            // so players can immediately read what kind of damage just happened.
             DamageIndicatorUtil.spawnIndicator(targetLocation, finalDamage, isCrit, attackType, statusDamage, false);
-        }
-
-        if (victim instanceof Player playerVictim) {
-            Game victimGame = GameManager.getPlayerGame(playerVictim.getUniqueId());
-            if (victimGame != null && victimGame.isRunning()) {
-                finalDamage *= Math.max(0.1, 1.0 + victimGame.getModifier(playerVictim.getUniqueId(), BuildModifierType.DAMAGE_TAKEN_MULT));
-            }
         }
 
         event.setDamage(finalDamage);
@@ -143,12 +125,92 @@ public class DamageCalculator implements Listener {
         }
         clearAttackTags(attacker);
         logCombat(
-                "base=" + baseDamage +
-                        " res=" + String.format("%.2f", resMultiplier) +
-                        " fragility=" + String.format("%.2f", fragilityMultiplier) +
+                        "base=" + baseDamage +
+                        " firstCategoryMultiplier=" + String.format("%.2f", breakdown.firstCategoryMultiplier()) +
+                        " secondCategoryMultiplier=" + String.format("%.2f", breakdown.secondCategoryMultiplier()) +
+                        " criticalDamageBonus=" + String.format("%.2f", breakdown.criticalDamageBonus()) +
+                        " typeResistanceBonus=" + String.format("%.2f", breakdown.typeResistanceBonus()) +
+                        " sinResistanceBonus=" + String.format("%.2f", breakdown.sinResistanceBonus()) +
+                        " victimMultiplierBonus=" + String.format("%.2f", breakdown.victimMultiplierBonus()) +
                         " final=" + String.format("%.2f", finalDamage) +
                         " yellow=" + String.format("%.2f", yellowResult.currentValue())
         );
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onPendingSelfStatusDamage(EntityDamageEvent event) {
+        if (event instanceof EntityDamageByEntityEvent) {
+            return;
+        }
+
+        Entity victim = event.getEntity();
+        CombatVariableUtil.PendingSelfStatusHit pendingSelfStatusHit = CombatVariableUtil.getPendingSelfStatusHit(victim);
+        if (pendingSelfStatusHit == null) {
+            return;
+        }
+
+        String attackSin = pendingSelfStatusHit.attackSin();
+        String attackType = pendingSelfStatusHit.attackType();
+        boolean statusDamage = true;
+        double baseDamage = pendingSelfStatusHit.amount();
+
+        if (attackSin == null || attackType == null) {
+            return;
+        }
+
+        if (CombatVariableUtil.isIndependentDot(attackType)) {
+            double independentDamage = adjustIndependentDotDamage(victim, attackType, baseDamage);
+            event.setDamage(independentDamage);
+            YellowBarUtil.DamageResult yellowResult = YellowBarUtil.applyDamage(victim, independentDamage);
+            if (yellowResult.broken()) {
+                LunarProject.getInstance().getStaggerManager().triggerYellowBarBreak(victim);
+            }
+            DamageIndicatorUtil.spawnIndicator(targetLocation(victim), independentDamage, false, attackType, statusDamage, yellowResult.broken());
+            logCombat("dot damage=" + independentDamage + " yellow=" + String.format("%.2f", yellowResult.currentValue()));
+            return;
+        }
+
+        DamageBreakdown breakdown = buildDamageBreakdown(
+                victim,
+                victim,
+                attackType,
+                attackSin,
+                statusDamage,
+                false,
+                1.0
+        );
+
+        double finalDamage = baseDamage * breakdown.firstCategoryMultiplier() * breakdown.secondCategoryMultiplier();
+        Location targetLocation = victim.getLocation();
+        DamageIndicatorUtil.spawnIndicator(targetLocation, finalDamage, false, attackType, statusDamage, false);
+        event.setDamage(finalDamage);
+        YellowBarUtil.DamageResult yellowResult = YellowBarUtil.applyDamage(victim, finalDamage);
+        if (yellowResult.broken()) {
+            LunarProject.getInstance().getStaggerManager().triggerYellowBarBreak(victim);
+            DamageIndicatorUtil.spawnIndicator(targetLocation, 0.0, false, attackType, true, true);
+        }
+        logCombat(
+                "base=" + baseDamage +
+                        " firstCategoryMultiplier=" + String.format("%.2f", breakdown.firstCategoryMultiplier()) +
+                        " secondCategoryMultiplier=" + String.format("%.2f", breakdown.secondCategoryMultiplier()) +
+                        " criticalDamageBonus=" + String.format("%.2f", breakdown.criticalDamageBonus()) +
+                        " typeResistanceBonus=" + String.format("%.2f", breakdown.typeResistanceBonus()) +
+                        " sinResistanceBonus=" + String.format("%.2f", breakdown.sinResistanceBonus()) +
+                        " victimMultiplierBonus=" + String.format("%.2f", breakdown.victimMultiplierBonus()) +
+                        " final=" + String.format("%.2f", finalDamage) +
+                        " yellow=" + String.format("%.2f", yellowResult.currentValue())
+        );
+    }
+
+    private double adjustIndependentDotDamage(Entity victim, String attackType, double baseDamage) {
+        // Player bleed keeps the Mirror Dungeon style rule: if the victim has not
+        // moved recently, the bleed tick is halved and rounded up.
+        if (victim instanceof Player player
+                && CombatVariableUtil.ATTACK_TYPE_BLEED_DOT.equalsIgnoreCase(attackType)
+                && !StatusMechanicManager.isPlayerMoving(player)) {
+            return Math.ceil(baseDamage / 2.0);
+        }
+        return baseDamage;
     }
 
     private Location targetLocation(Entity entity) {
@@ -157,6 +219,71 @@ public class DamageCalculator implements Listener {
 
     private double clampResistance(double value) {
         return Math.max(0.5, Math.min(2.0, value));
+    }
+
+    private DamageBreakdown buildDamageBreakdown(
+            Entity attacker,
+            Entity victim,
+            String attackType,
+            String attackSin,
+            boolean statusDamage,
+            boolean isCrit,
+            double critMultiplier
+    ) {
+        double sinResistanceValue = clampResistance(getEntityResistance(victim, attackSin));
+        double typeResistanceValue = clampResistance(getEntityResistance(victim, attackType));
+
+        int staggerStage = getStaggerStage(victim);
+        if (staggerStage == 1) {
+            sinResistanceValue = Math.max(sinResistanceValue, 1.5);
+            typeResistanceValue = Math.max(typeResistanceValue, 1.5);
+        } else if (staggerStage == 2) {
+            sinResistanceValue = Math.max(sinResistanceValue, 2.0);
+            typeResistanceValue = Math.max(typeResistanceValue, 2.0);
+        }
+
+        int pureFragility = getEntityFragility(victim, "pure_fragility");
+        int typeFragility = getEntityFragility(victim, attackType + "_fragility");
+        int sinFragility = getEntityFragility(victim, attackSin + "_fragility");
+        pureFragility += resolveFragilityBonus(attacker);
+
+        // The first category only uses the extra value above 100% of the locked
+        // crit/resistance multipliers. For example, a 2.0 resistance contributes
+        // +1.0 here rather than +2.0.
+        double criticalDamageBonus = (!statusDamage && isCrit) ? Math.max(0.0, critMultiplier - 1.0) : 0.0;
+        double typeResistanceBonus = typeResistanceValue - 1.0;
+        double sinResistanceBonus = sinResistanceValue - 1.0;
+
+        // Fragility stacks are a second-category additive bonus source. Ten total
+        // stacks contribute +1.0 here, not +10.
+        double victimMultiplierBonus = (pureFragility + typeFragility + sinFragility) * 0.1;
+
+        double firstCategoryMultiplier = Math.max(
+                FIRST_MULTIPLIER_FLOOR,
+                1.0 + criticalDamageBonus + typeResistanceBonus + sinResistanceBonus
+        );
+        double secondCategoryMultiplier = Math.max(SECOND_MULTIPLIER_FLOOR, 1.0 + victimMultiplierBonus);
+        return new DamageBreakdown(
+                firstCategoryMultiplier,
+                secondCategoryMultiplier,
+                criticalDamageBonus,
+                typeResistanceBonus,
+                sinResistanceBonus,
+                victimMultiplierBonus
+        );
+    }
+
+    private int resolveFragilityBonus(Entity attacker) {
+        if (!(attacker instanceof Player playerAttacker)) {
+            return 0;
+        }
+
+        Game attackerGame = GameManager.getPlayerGame(playerAttacker.getUniqueId());
+        if (attackerGame == null || !attackerGame.isRunning()) {
+            return 0;
+        }
+
+        return (int) Math.round(attackerGame.getModifier(playerAttacker.getUniqueId(), BuildModifierType.FRAGILITY_BONUS));
     }
 
     private int getStaggerStage(Entity entity) {
@@ -175,6 +302,7 @@ public class DamageCalculator implements Listener {
 
     private void clearAttackTags(Entity attacker) {
         CombatVariableUtil.clearAttackPayload(attacker);
+        PoiseCritManager.clearPendingCrit(attacker);
     }
 
     private int getEntityFragility(Entity entity, String variableName) {
@@ -217,5 +345,15 @@ public class DamageCalculator implements Listener {
         if (LunarProject.getInstance().isCombatLogEnabled()) {
             Bukkit.getLogger().info("[LunarProject] " + message);
         }
+    }
+
+    private record DamageBreakdown(
+            double firstCategoryMultiplier,
+            double secondCategoryMultiplier,
+            double criticalDamageBonus,
+            double typeResistanceBonus,
+            double sinResistanceBonus,
+            double victimMultiplierBonus
+    ) {
     }
 }

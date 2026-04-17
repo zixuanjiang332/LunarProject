@@ -5,6 +5,7 @@ import jdd.lunarProject.Build.RelicManager;
 import jdd.lunarProject.Build.RewardManager;
 import jdd.lunarProject.Command.GameCommand;
 import jdd.lunarProject.Config.MapConfig;
+import jdd.lunarProject.Config.MessageManager;
 import jdd.lunarProject.Game.GameManager;
 import jdd.lunarProject.Game.MythicMobRegistry;
 import jdd.lunarProject.Game.StageManager;
@@ -17,8 +18,11 @@ import jdd.lunarProject.GameListener.GamePlayerListener;
 import jdd.lunarProject.MobsListener.DamageCalculator;
 import jdd.lunarProject.MobsListener.GameMobDeathListener;
 import jdd.lunarProject.MobsListener.MythicDamageListener;
+import jdd.lunarProject.MobsListener.MythicSkillGateListener;
 import jdd.lunarProject.MobsListener.PoiseCritManager;
+import jdd.lunarProject.MobsListener.ResistanceDebugStickListener;
 import jdd.lunarProject.MobsListener.StaggerListener;
+import jdd.lunarProject.MobsListener.StatusMechanicManager;
 import jdd.lunarProject.MobsListener.TestMobListener;
 import jdd.lunarProject.Task.SinkingSpeedManager;
 import org.bukkit.Bukkit;
@@ -93,6 +97,7 @@ public final class LunarProject extends JavaPlugin {
     public void onEnable() {
         saveDefaultConfig();
         MapConfig.init();
+        MessageManager.init();
 
         List<String> mapIssues = MapConfig.ensureConfiguredMapFolders();
         if (!mapIssues.isEmpty()) {
@@ -139,6 +144,8 @@ public final class LunarProject extends JavaPlugin {
             new ProjectMoonExpansion().register();
         }
 
+        StatusMechanicManager statusMechanicManager = new StatusMechanicManager();
+        statusMechanicManager.runTaskTimer(this, 0L, 5L);
         new SinkingSpeedManager().runTaskTimer(this, 0L, 10L);
         PluginCommand gameCommand = getCommand("game");
         if (gameCommand == null) {
@@ -153,9 +160,12 @@ public final class LunarProject extends JavaPlugin {
 
         getServer().getPluginManager().registerEvents(new TestMobListener(), this);
         getServer().getPluginManager().registerEvents(new MythicDamageListener(), this);
+        getServer().getPluginManager().registerEvents(new MythicSkillGateListener(), this);
         getServer().getPluginManager().registerEvents(new GameMobDeathListener(), this);
         getServer().getPluginManager().registerEvents(new DamageCalculator(), this);
         getServer().getPluginManager().registerEvents(new PoiseCritManager(), this);
+        getServer().getPluginManager().registerEvents(statusMechanicManager, this);
+        getServer().getPluginManager().registerEvents(new ResistanceDebugStickListener(), this);
         getServer().getPluginManager().registerEvents(new GamePlayerListener(), this);
         getServer().getPluginManager().registerEvents(new ConnectionListener(), this);
         getServer().getPluginManager().registerEvents(new StaggerListener(staggerManager), this);

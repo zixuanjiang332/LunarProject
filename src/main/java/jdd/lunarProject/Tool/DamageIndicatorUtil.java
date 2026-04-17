@@ -94,7 +94,7 @@ public final class DamageIndicatorUtil {
             return "§b" + label + " §f" + displayDamage;
         }
         if (isCrit) {
-            return "§c§l✦" + displayDamage + "✦";
+            return "§c§l暴击 §f" + displayDamage;
         }
         return "§7" + displayDamage;
     }

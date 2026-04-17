@@ -15,7 +15,9 @@ import java.util.Map;
 import java.util.UUID;
 
 public class PoiseCritManager implements Listener {
+    private static final long PENDING_CRIT_TTL_MS = 2_000L;
     private static final Map<UUID, Long> poiseCountCooldowns = new HashMap<>();
+    private static final Map<UUID, PendingCrit> pendingCrits = new HashMap<>();
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onEntityDealDamage(EntityDamageByEntityEvent event) {
@@ -37,16 +39,24 @@ public class PoiseCritManager implements Listener {
 
         if (playerAttacker) {
             Player player = (Player) attacker;
-            variables = MythicBukkit.inst().getPlayerManager().getProfile(player).getVariables();
+            var profile = MythicBukkit.inst().getPlayerManager().getProfile(player);
+            if (profile == null) {
+                return;
+            }
+
+            variables = profile.getVariables();
             count = variables.getInt(CombatVariableUtil.VAR_POISE_COUNT);
             intensity = variables.getInt(CombatVariableUtil.VAR_POISE_INTENSITY);
             if (count <= 0 || intensity <= 0) {
+                clearPendingCrit(attacker);
                 return;
             }
 
             critRate = Math.min(1.0, intensity * 0.025);
+            // We keep the full crit multiplier here (for example 1.30), and the
+            // regular damage formula later only reads the extra part above 1.00.
             critDamage = 1.30;
-            if (intensity > 40) {
+            if (critRate >= 1.0 && intensity > 40) {
                 critDamage += ((intensity - 40) * 0.01);
             }
         } else {
@@ -59,21 +69,28 @@ public class PoiseCritManager implements Listener {
             count = variables.getInt(CombatVariableUtil.VAR_POISE_COUNT);
             intensity = variables.getInt(CombatVariableUtil.VAR_POISE_INTENSITY);
             if (count <= 0 || intensity <= 0) {
+                clearPendingCrit(attacker);
                 return;
             }
 
             critRate = Math.min(0.8, intensity * 0.04);
+            // Same rule for mobs: store the full multiplier here and let the
+            // damage formula convert it into the first-category extra bonus.
             critDamage = 1.20;
-            if (intensity > 20) {
+            if (critRate >= 0.8 && intensity > 20) {
                 critDamage += ((intensity - 20) * 0.01);
             }
         }
 
-        if (Math.random() >= critRate) {
+        variables.putDouble(CombatVariableUtil.VAR_LAST_CRIT_RATE, critRate);
+        variables.putDouble(CombatVariableUtil.VAR_LAST_CRIT_DAMAGE_MULTIPLIER, critDamage);
+
+        boolean critSuccess = Math.random() < critRate;
+        pendingCrits.put(attacker.getUniqueId(), new PendingCrit(critSuccess, critSuccess ? critDamage : 1.0, System.currentTimeMillis() + PENDING_CRIT_TTL_MS));
+
+        if (!critSuccess) {
             return;
         }
-
-        event.setDamage(event.getDamage() * critDamage);
 
         // A successful crit only consumes one breath layer every 0.3 seconds.
         UUID attackerId = attacker.getUniqueId();
@@ -92,5 +109,42 @@ public class PoiseCritManager implements Listener {
         }
 
         MythicBukkit.inst().getAPIHelper().castSkill(attacker, "System_Apply_Poise_Crit_Effect");
+    }
+
+    public static PendingCrit consumePendingCrit(Entity attacker) {
+        PendingCrit pendingCrit = pendingCrits.remove(attacker.getUniqueId());
+        if (pendingCrit == null) {
+            return PendingCrit.NONE;
+        }
+        if (pendingCrit.expiresAt < System.currentTimeMillis()) {
+            return PendingCrit.NONE;
+        }
+        return pendingCrit;
+    }
+
+    public static void clearPendingCrit(Entity attacker) {
+        pendingCrits.remove(attacker.getUniqueId());
+    }
+
+    public static final class PendingCrit {
+        public static final PendingCrit NONE = new PendingCrit(false, 1.0, 0L);
+
+        private final boolean critical;
+        private final double multiplier;
+        private final long expiresAt;
+
+        private PendingCrit(boolean critical, double multiplier, long expiresAt) {
+            this.critical = critical;
+            this.multiplier = multiplier;
+            this.expiresAt = expiresAt;
+        }
+
+        public boolean critical() {
+            return critical;
+        }
+
+        public double multiplier() {
+            return multiplier;
+        }
     }
 }

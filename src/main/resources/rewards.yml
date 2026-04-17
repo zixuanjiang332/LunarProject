@@ -41,29 +41,25 @@ pools:
     relics:
       - "demo_terminal_chip"
     services:
-      - "sharpen_focus"
-      - "emergency_barrier"
+      - "clear_mind"
+      - "field_patch"
   boss_clear:
     count: 3
     relics:
       - "demo_terminal_chip"
     services:
-      - "sharpen_focus"
       - "field_patch"
+      - "clear_mind"
   event_room:
     count: 3
     relics:
       - "demo_terminal_chip"
-    services:
-      - "clear_mind"
-      - "field_patch"
+    services: []
   shop_room:
     count: 3
-    relics: []
-    services:
-      - "sharpen_focus"
-      - "emergency_barrier"
-      - "field_patch"
+    relics:
+      - "demo_terminal_chip"
+    services: []
   rest_room:
     count: 3
     relics: []

@@ -6,6 +6,7 @@ import jdd.lunarProject.Build.RewardManager;
 import jdd.lunarProject.Build.RewardOption;
 import jdd.lunarProject.Build.RewardPoolDefinition;
 import jdd.lunarProject.Build.ServiceDefinition;
+import jdd.lunarProject.Config.MessageManager;
 import jdd.lunarProject.Game.RandomEventManager.EventOutcome;
 import jdd.lunarProject.Game.StageModels.MobSpawn;
 import jdd.lunarProject.Game.StageModels.StageTemplate;
@@ -86,6 +87,19 @@ public class RoundManager {
     public record ShopOffer(String id, String name, String description, int cost, boolean purchased) {
     }
 
+    public List<ShopOffer> getActiveShopOffers(UUID playerId) {
+        Set<String> purchased = purchasedShopOffers.getOrDefault(playerId, Set.of());
+        List<ShopOffer> offers = new ArrayList<>();
+        offers.add(new ShopOffer(
+                SHOP_OFFER_RELIC,
+                "测试饰品样品",
+                "消耗 120 碎金，购买一个演示饰品。",
+                120,
+                purchased.contains(SHOP_OFFER_RELIC)
+        ));
+        return offers;
+    }
+
     public void beginRunSelection() {
         cancelVoteCountdown();
         cancelReadyCountdown();
@@ -100,10 +114,15 @@ public class RoundManager {
         currentMajorChoices.put(1, "第一大关卡：测试线路");
         voteCountdown = LunarProject.getInstance().getVoteTimeoutSeconds();
         playerVotes.clear();
-        game.broadcast("§6===== 选择大关卡 =====");
-        game.broadcast("§e请选择本次要进入的大关卡。测试阶段当前仅开放 1 条线路。");
+        game.broadcast(MessageManager.text("round.major-select-title", "§6===== 选择大关卡 ====="));
+        game.broadcast(MessageManager.text("round.major-select-prompt", "§e请选择本次要进入的大关卡。测试阶段当前仅开放 1 条线路。"));
         for (Map.Entry<Integer, String> entry : currentMajorChoices.entrySet()) {
-            game.broadcast("§b[" + entry.getKey() + "] §f" + entry.getValue());
+            game.broadcast(MessageManager.format(
+                    "round.major-select-option",
+                    "§b[%index%] §f%name%",
+                    "index", entry.getKey(),
+                    "name", entry.getValue()
+            ));
         }
         startVoteCountdown();
         LunarProject.getInstance().getGuiManager().refreshGame(game);
@@ -122,7 +141,7 @@ public class RoundManager {
             return;
         }
         if (currentRound > MAX_ROUNDS) {
-            game.broadcast("§a当前路线已经完成。");
+            game.broadcast(MessageManager.text("round.route-complete", "?a?????????"));
             game.setGameState(GameState.ENDED);
             return;
         }
@@ -147,15 +166,23 @@ public class RoundManager {
             }
         }
         if (currentNodeChoices.isEmpty()) {
-            game.broadcast("§c第 " + currentRound + " 回合未找到可用节点，流程已终止。");
+            game.broadcast(MessageManager.format(
+                    "round.round-missing-stage",
+                    "?c? %round% ????????????????",
+                    "round", currentRound
+            ));
             game.setGameState(GameState.ENDED);
             return;
         }
         votingPhase = true;
         voteCountdown = LunarProject.getInstance().getVoteTimeoutSeconds();
         playerVotes.clear();
-        game.broadcast("§6===== 第 " + currentRound + " 回合 =====");
-        game.broadcast("§e请使用 /game vote <编号> 选择下一小关卡。");
+        game.broadcast(MessageManager.format(
+                "round.node-round-title",
+                "?6===== ? %round% ?? =====",
+                "round", currentRound
+        ));
+        game.broadcast(MessageManager.text("round.node-vote-prompt", "?e??? /game vote <??> ????????"));
         for (String line : getVoteOptionDisplay()) {
             game.broadcast(line);
         }
@@ -165,30 +192,40 @@ public class RoundManager {
 
     public void castVote(Player player, int choiceIndex) {
         if (!votingPhase) {
-            player.sendMessage("§c当前不在投票阶段。");
+            player.sendMessage(MessageManager.text("round.vote-phase-invalid", "?c?????????"));
             return;
         }
         if (!game.isActivePlayer(player)) {
-            player.sendMessage("§c只有存活玩家可以投票。");
+            player.sendMessage(MessageManager.text("round.vote-only-alive", "?c???????????"));
             return;
         }
         if (majorSelectionPhase) {
             if (!currentMajorChoices.containsKey(choiceIndex)) {
-                player.sendMessage("§c该大关卡选项不存在。");
+                player.sendMessage(MessageManager.text("round.major-choice-invalid", "?c??????????"));
                 return;
             }
             playerVotes.put(player.getUniqueId(), choiceIndex);
-            game.broadcast("§b" + player.getName() + " 选择了大关卡 " + choiceIndex + "。");
+            game.broadcast(MessageManager.format(
+                    "round.major-picked-broadcast",
+                    "?b%player% ?????? %index%?",
+                    "player", player.getName(),
+                    "index", choiceIndex
+            ));
             LunarProject.getInstance().getGuiManager().refreshGame(game);
             checkVote();
             return;
         }
         if (!currentNodeChoices.containsKey(choiceIndex)) {
-            player.sendMessage("§c该节点不存在。");
+            player.sendMessage(MessageManager.text("round.node-choice-invalid", "?c???????"));
             return;
         }
         playerVotes.put(player.getUniqueId(), choiceIndex);
-        game.broadcast("§b" + player.getName() + " 投票选择了节点 " + choiceIndex + "。");
+        game.broadcast(MessageManager.format(
+                "round.node-picked-broadcast",
+                "?b%player% ??????? %index%?",
+                "player", player.getName(),
+                "index", choiceIndex
+        ));
         LunarProject.getInstance().getGuiManager().refreshGame(game);
         checkVote();
     }
@@ -210,23 +247,27 @@ public class RoundManager {
 
     public void setPlayerProceed(Player player) {
         if (!peacefulRoom) {
-            player.sendMessage("§c当前没有可推进的阶段。");
+            player.sendMessage(MessageManager.text("round.proceed-phase-invalid", "?c???????????"));
             return;
         }
         if (!game.isActivePlayer(player)) {
-            player.sendMessage("§c只有存活玩家可以推进。");
+            player.sendMessage(MessageManager.text("round.proceed-only-alive", "?c???????????"));
             return;
         }
         if (eventRoom && !eventResolved) {
-            player.sendMessage("§c请先使用 /game event choose <1|2> 处理事件。");
+            player.sendMessage(MessageManager.text("round.proceed-event-first", "?c???? /game event choose <1|2> ?????"));
             return;
         }
         if (rewardPhase) {
-            player.sendMessage("§c请先使用 /game reward choose <1|2|3> 选择奖励。");
+            player.sendMessage(MessageManager.text("round.proceed-reward-first", "?c???? /game reward choose <1|2|3> ?????"));
             return;
         }
         proceedPlayers.add(player.getUniqueId());
-        game.broadcast("§a" + player.getName() + " 已准备推进。");
+        game.broadcast(MessageManager.format(
+                "round.proceed-ready",
+                "?a%player% ??????",
+                "player", player.getName()
+        ));
         LunarProject.getInstance().getGuiManager().refreshGame(game);
         checkProceed();
     }
@@ -248,28 +289,28 @@ public class RoundManager {
 
     public void handleShopPurchase(Player player, String offerId) {
         if (!shopRoom || !peacefulRoom) {
-            player.sendMessage("§c当前不在商店房间中。");
+            player.sendMessage(MessageManager.text("round.shop-room-invalid", "§c当前不在商店房间中。"));
             return;
         }
         if (!game.isActivePlayer(player)) {
-            player.sendMessage("§c只有存活玩家可以使用商店。");
+            player.sendMessage(MessageManager.text("round.shop-only-alive", "§c只有存活玩家可以使用商店。"));
             return;
         }
         if (shopPurchasedPlayers.contains(player.getUniqueId())) {
-            player.sendMessage("§c你已经领取过当前房间的商店服务。");
+            player.sendMessage(MessageManager.text("round.shop-service-claimed", "§c你已经领取过当前房间的商店服务。"));
             return;
         }
 
         String normalizedId = normalizeShopOfferId(offerId);
         RewardPoolDefinition shopPool = RewardManager.getPool("shop_room");
         if (shopPool == null || !shopPool.services().contains(normalizedId)) {
-            player.sendMessage("§c未知商店商品: " + offerId);
+            player.sendMessage(MessageManager.format("round.shop-item-missing", "§c未找到对应的商店商品：§f%offer%", "offer", offerId));
             return;
         }
 
         ServiceDefinition service = RewardManager.getService(normalizedId);
         if (service == null) {
-            player.sendMessage("§c该商店服务未正确配置。");
+            player.sendMessage(MessageManager.text("round.shop-service-invalid", "§c该商店服务未正确配置。"));
             return;
         }
 
@@ -279,49 +320,59 @@ public class RoundManager {
                 new RewardOption(RewardOption.RewardType.SERVICE, service.id(), service.name(), service.rarity(), service.description(), "")
         );
         if (!applied) {
-            player.sendMessage("§c商店服务发放失败。");
+            player.sendMessage(MessageManager.text("round.shop-service-failed", "§c商店服务发放失败。"));
             return;
         }
 
         shopPurchasedPlayers.add(player.getUniqueId());
-        player.sendMessage("§a已购买商店服务: §f" + service.name());
+        player.sendMessage(MessageManager.format("round.shop-service-purchased", "§a已购买商店服务：§f%name%", "name", service.name()));
         LunarProject.getInstance().getGuiManager().refreshGame(game);
     }
 
     public void purchaseShopOffer(Player player, String offerId) {
         if (!shopRoom || !peacefulRoom) {
-            player.sendMessage("§c当前不在商店房间中。");
+            player.sendMessage(MessageManager.text("round.shop-room-invalid", "§c当前不在商店房间中。"));
             return;
         }
         if (!game.isActivePlayer(player)) {
-            player.sendMessage("§c只有存活玩家可以使用商店。");
+            player.sendMessage(MessageManager.text("round.shop-only-alive", "§c只有存活玩家可以使用商店。"));
             return;
         }
-        ShopOffer selectedOffer = getShopOffers(player.getUniqueId()).stream()
+        ShopOffer selectedOffer = getActiveShopOffers(player.getUniqueId()).stream()
                 .filter(offer -> offer.id().equalsIgnoreCase(normalizeShopOfferId(offerId)))
                 .findFirst()
                 .orElse(null);
         if (selectedOffer == null) {
-            player.sendMessage("§c未知商店商品: " + offerId);
+            player.sendMessage(MessageManager.format("round.shop-item-missing", "§c未找到对应的商店商品：§f%offer%", "offer", offerId));
             return;
         }
         if (selectedOffer.purchased()) {
-            player.sendMessage("§e这个商品在当前商店已经购买过了。");
+            player.sendMessage(MessageManager.text("round.shop-offer-owned", "§e这个商品在当前商店已经购买过了。"));
             return;
         }
         if (selectedOffer.cost() > 0 && !game.spendCoins(player.getUniqueId(), selectedOffer.cost())) {
-            player.sendMessage("§c你的碎金不足，需要 §f" + selectedOffer.cost() + " §c枚。当前持有 §f" + game.getCoins(player.getUniqueId()));
+            player.sendMessage(MessageManager.format(
+                    "round.shop-no-coins",
+                    "§c你的碎金不足，需要 §f%cost% §c枚。当前持有 §f%current%",
+                    "cost", selectedOffer.cost(),
+                    "current", game.getCoins(player.getUniqueId())
+            ));
             return;
         }
         if (!applyShopOffer(player, selectedOffer)) {
             if (selectedOffer.cost() > 0) {
                 game.addCoins(player.getUniqueId(), selectedOffer.cost());
             }
-            player.sendMessage("§c购买失败，请检查商品配置。");
+            player.sendMessage(MessageManager.text("round.shop-purchase-failed", "§c购买失败，请检查商品配置。"));
             return;
         }
         purchasedShopOffers.computeIfAbsent(player.getUniqueId(), ignored -> new HashSet<>()).add(selectedOffer.id());
-        player.sendMessage("§a已购买 §f" + selectedOffer.name() + "§7，剩余碎金 §f" + game.getCoins(player.getUniqueId()));
+        player.sendMessage(MessageManager.format(
+                "round.shop-purchased",
+                "§a已购买 §f%name%§7，剩余碎金 §f%current%",
+                "name", selectedOffer.name(),
+                "current", game.getCoins(player.getUniqueId())
+        ));
         LunarProject.getInstance().getGuiManager().refreshGame(game);
     }
 
@@ -337,48 +388,48 @@ public class RoundManager {
 
     public void handleEventChoice(Player player, String choiceId) {
         if (!eventRoom || !peacefulRoom) {
-            player.sendMessage("§c当前不在事件房间中。");
+            player.sendMessage(MessageManager.text("round.event-room-invalid", "§c当前不在事件房间中。"));
             return;
         }
         if (eventResolved) {
-            player.sendMessage("§e这个事件已经处理完成。");
+            player.sendMessage(MessageManager.text("round.event-already-resolved", "§e这个事件已经处理完成。"));
             return;
         }
         if (!game.isActivePlayer(player)) {
-            player.sendMessage("§c只有存活玩家可以处理事件。");
+            player.sendMessage(MessageManager.text("round.event-only-alive", "§c只有存活玩家可以处理事件。"));
             return;
         }
         int choice;
         try {
             choice = Integer.parseInt(choiceId);
         } catch (NumberFormatException exception) {
-            player.sendMessage("§c请输入 1 或 2。");
+            player.sendMessage(MessageManager.text("round.event-choice-invalid", "§c请输入 1 或 2。"));
             return;
         }
         EventOutcome outcome = RandomEventManager.handleEventChoice(game, player, currentEventId, choice);
         if (outcome == EventOutcome.INVALID) {
-            player.sendMessage("§c请输入 1 或 2。");
+            player.sendMessage(MessageManager.text("round.event-choice-invalid", "§c请输入 1 或 2。"));
             return;
         }
         if (outcome == EventOutcome.SAFE_RESOLVED) {
             eventResolved = true;
             startRewardPhase("event_room", false);
-            game.broadcast("§e事件已处理完成，请选择奖励后再推进。");
+            game.broadcast(MessageManager.text("round.event-resolved", "§e事件已处理完成，请选择奖励后再推进。"));
         }
         LunarProject.getInstance().getGuiManager().refreshGame(game);
     }
 
     public void handleRewardChoice(Player player, int choiceIndex) {
         if (!rewardPhase) {
-            player.sendMessage("§c当前没有待选择的奖励。");
+            player.sendMessage(MessageManager.text("round.reward-none", "§c当前没有待选择的奖励。"));
             return;
         }
         if (!game.isActivePlayer(player)) {
-            player.sendMessage("§c只有存活玩家可以领取奖励。");
+            player.sendMessage(MessageManager.text("round.reward-only-alive", "§c只有存活玩家可以领取奖励。"));
             return;
         }
         if (resolvedRewardPlayers.contains(player.getUniqueId())) {
-            player.sendMessage("§e你已经锁定了本次奖励。");
+            player.sendMessage(MessageManager.text("round.reward-already-locked", "§e你已经锁定了本次奖励。"));
             return;
         }
         List<RewardOption> rewardOptions = pendingRewards.get(player.getUniqueId());
@@ -388,16 +439,16 @@ public class RoundManager {
             return;
         }
         if (choiceIndex < 1 || choiceIndex > rewardOptions.size()) {
-            player.sendMessage("§c请输入有效的奖励编号。");
+            player.sendMessage(MessageManager.text("round.reward-invalid-choice", "§c请输入有效的奖励编号。"));
             return;
         }
         RewardOption rewardOption = rewardOptions.get(choiceIndex - 1);
         if (!RewardManager.applyReward(game, player, rewardOption)) {
-            player.sendMessage("§c奖励发放失败。");
+            player.sendMessage(MessageManager.text("round.reward-apply-failed", "§c奖励发放失败。"));
             return;
         }
         resolvedRewardPlayers.add(player.getUniqueId());
-        player.sendMessage("§a已选择奖励: §f" + rewardOption.name());
+        player.sendMessage(MessageManager.format("round.reward-picked", "§a已选择奖励：§f%name%", "name", rewardOption.name()));
         LunarProject.getInstance().getGuiManager().refreshGame(game);
         checkRewardResolution();
     }
@@ -422,7 +473,7 @@ public class RoundManager {
             return;
         }
 
-        game.broadcast("§a所有奖励均已锁定，准备好后可使用 /game proceed 推进。");
+        game.broadcast(MessageManager.text("round.reward-locked", "§a所有奖励均已锁定，准备好后可使用 /game proceed 推进。"));
         LunarProject.getInstance().getGuiManager().refreshGame(game);
         checkProceed();
     }
@@ -438,7 +489,7 @@ public class RoundManager {
     public void triggerAmbush(StageTemplate ambushTemplate) {
         if (ambushTemplate == null || currentStage == null) {
             eventResolved = true;
-            game.broadcast("§c未能触发伏击战斗。");
+            game.broadcast(MessageManager.text("round.ambush-failed", "§c未能触发伏击战斗。"));
             startRewardPhase("event_room", false);
             return;
         }
@@ -452,7 +503,7 @@ public class RoundManager {
 
         currentTemplate = ambushTemplate;
         prepareCombatStage();
-        game.broadcast("§c事件局势失控，伏击战开始！");
+        game.broadcast(MessageManager.text("round.ambush-start", "§c事件局势失控，伏击战开始！"));
         spawnNextWave();
         LunarProject.getInstance().getGuiManager().refreshGame(game);
     }
@@ -643,13 +694,24 @@ public class RoundManager {
         List<String> lines = new ArrayList<>();
         if (majorSelectionPhase) {
             for (Map.Entry<Integer, String> entry : currentMajorChoices.entrySet()) {
-                lines.add("§b[" + entry.getKey() + "] §f" + entry.getValue());
+                lines.add(MessageManager.format(
+                        "round.major-select-option",
+                        "?b[%index%] ?f%name%",
+                        "index", entry.getKey(),
+                        "name", entry.getValue()
+                ));
             }
             return lines;
         }
         for (Map.Entry<Integer, StageTemplate> entry : currentNodeChoices.entrySet()) {
             StageTemplate template = entry.getValue();
-            lines.add("§b[" + entry.getKey() + "] §f" + formatStageType(template.stageType()) + " §7- " + template.stageId());
+            lines.add(MessageManager.format(
+                    "round.node-vote-option",
+                    "?b[%index%] ?f?%stage_type%??7 - %stage_id%",
+                    "index", entry.getKey(),
+                    "stage_type", formatStageType(template.stageType()),
+                    "stage_id", formatStageCode(template.stageId())
+            ));
         }
         return lines;
     }
@@ -664,7 +726,7 @@ public class RoundManager {
         for (int index = 0; index < rewardOptions.size(); index++) {
             RewardOption option = rewardOptions.get(index);
             String typeLabel = option.rewardType() == RewardOption.RewardType.RELIC ? "饰品" : "服务";
-            lines.add("§b[" + (index + 1) + "] §f" + option.name() + " §7(" + typeLabel + " / " + option.rarity() + ")");
+            lines.add("§b[" + (index + 1) + "] §f" + option.name() + " §7(" + typeLabel + " / " + formatRarity(option.rarity()) + ")");
             lines.add("§7 - " + option.description());
         }
         return lines;
@@ -687,7 +749,11 @@ public class RoundManager {
             currentMajorChoices.clear();
             currentRound = 1;
             bossPrepShopPending = false;
-            game.broadcast("§a已选定第 " + chosenTier + " 大关卡，开始生成第一层路线。");
+            game.broadcast(MessageManager.format(
+                    "round.major-select-picked",
+                    "?a???? %index% ??????????????",
+                    "index", chosenTier
+            ));
             new BukkitRunnable() {
                 @Override
                 public void run() {
@@ -707,7 +773,7 @@ public class RoundManager {
             chosenTemplate = StageManager.getAnyStageFallback(currentTier, currentRound);
         }
         if (chosenTemplate == null) {
-            game.broadcast("§c未能确定下一小关卡。");
+            game.broadcast(MessageManager.text("round.next-stage-undetermined", "?c??????????"));
             game.setGameState(GameState.ENDED);
             return;
         }
@@ -726,12 +792,17 @@ public class RoundManager {
         }
         currentStage = new GameLevel(template.mapName(), game.getGameId() + "_r" + currentRound);
         if (!currentStage.load()) {
-            game.broadcast("§c地图加载失败：" + template.mapName() + "。");
+            game.broadcast(MessageManager.format("round.stage-load-failed", "§c地图加载失败：%map%。", "map", template.mapName()));
             game.setGameState(GameState.ENDED);
             return;
         }
         teleportPlayersToCurrentStage();
-        game.broadcast("§6进入 " + formatStageType(template.stageType()) + " §7(" + template.stageId() + ")");
+        game.broadcast(MessageManager.format(
+                "round.stage-enter",
+                "§6已进入 %stage_type%§7（节点编号：%stage_id%）",
+                "stage_type", formatStageType(template.stageType()),
+                "stage_id", formatStageCode(template.stageId())
+        ));
         LunarProject.getInstance().getGuiManager().refreshGame(game);
         switch (template.stageType().toUpperCase(Locale.ROOT)) {
             case "REST" -> enterRestRoom();
@@ -749,7 +820,7 @@ public class RoundManager {
         for (Player player : game.getActiveOnlinePlayers()) {
             game.applyPostCombatRecovery(player, 0.10, 4);
         }
-        game.broadcast("§a队伍获得了短暂喘息。请先选择房间奖励，再决定是否推进。");
+        game.broadcast(MessageManager.text("round.rest-room-enter", "§a队伍获得了短暂喘息。请先选择房间奖励，再决定是否推进。"));
         startRewardPhase("rest_room", false);
         startReadyCountdown();
         LunarProject.getInstance().getGuiManager().refreshGame(game);
@@ -758,7 +829,7 @@ public class RoundManager {
     private void enterShopRoom() {
         peacefulRoom = true;
         shopRoom = true;
-        game.broadcast("§6补给站已开放。你可以花费碎金恢复状态、购买测试饰品，或查看合成接口。");
+        game.broadcast(MessageManager.text("round.shop-intro", "?6??????????????????????????????????"));
         broadcastShopServices();
         startReadyCountdown();
         LunarProject.getInstance().getGuiManager().refreshGame(game);
@@ -797,7 +868,7 @@ public class RoundManager {
             return;
         }
         if (currentStage == null || currentStage.getWorld() == null) {
-            game.broadcast("§c当前战斗地图已不可用。");
+            game.broadcast(MessageManager.text("round.combat-map-invalid", "§c当前战斗地图已不可用。"));
             game.setGameState(GameState.ENDED);
             return;
         }
@@ -813,7 +884,7 @@ public class RoundManager {
         }
 
         int spawnIndex = 0;
-        game.broadcast("§c第 " + waveData.waveIndex() + " 波敌人出现。");
+        game.broadcast(MessageManager.format("round.wave-begin", "§c第 %wave% 波敌人出现。", "wave", waveData.waveIndex()));
         for (MobSpawn mobSpawn : waveData.mobs()) {
             for (int amount = 0; amount < mobSpawn.amount(); amount++) {
                 if (spawners.isEmpty()) {
@@ -872,11 +943,11 @@ public class RoundManager {
             game.clearTemporaryCombatState(player);
         }
         if (currentTemplate != null && "NORMAL".equalsIgnoreCase(currentTemplate.stageType())) {
-            game.broadcast("§a普通战已结束，开始选择下一小关卡。");
+            game.broadcast(MessageManager.text("round.normal-clear", "?a?????????????????"));
             returnToLobbyAndAdvance();
             return;
         }
-        game.broadcast("§a房间已清空，请选择奖励。");
+        game.broadcast(MessageManager.text("round.reward-open", "?a????????????"));
         startRewardPhase(RewardManager.getPoolForStageType(currentTemplate.stageType()), true);
         LunarProject.getInstance().getGuiManager().refreshGame(game);
     }
@@ -896,15 +967,15 @@ public class RoundManager {
             List<RewardOption> rewardOptions = RewardManager.generateRewardOptions(game, player, poolId);
             if (rewardOptions.isEmpty()) {
                 resolvedRewardPlayers.add(player.getUniqueId());
-                player.sendMessage("§7你在这个房间没有可选的独特奖励。");
+                player.sendMessage(MessageManager.text("round.reward-empty-player", "§7你在这个房间没有可选的独特奖励。"));
                 continue;
             }
             pendingRewards.put(player.getUniqueId(), rewardOptions);
-            player.sendMessage("§6===== 奖励选择 =====");
+            player.sendMessage(MessageManager.text("round.reward-select-title", "§6===== 奖励选择 ====="));
             for (String line : getRewardOptionDisplay(player)) {
                 player.sendMessage(line);
             }
-            player.sendMessage("§e使用 /game reward choose <1|2|3> 选择奖励。");
+            player.sendMessage(MessageManager.text("round.reward-select-prompt", "§e使用 /game reward choose <1|2|3> 选择奖励。"));
         }
         LunarProject.getInstance().getLogger().info("[Reward] Generated pool " + poolId + " for room " + getCurrentRoomType());
         checkRewardResolution();
@@ -959,7 +1030,7 @@ public class RoundManager {
         currentTemplate = null;
         clearTransientRoomState();
         if (bossVictory) {
-            game.broadcast("§6最终 Boss 倒下了，本轮挑战完成。");
+            game.broadcast(MessageManager.text("round.final-boss-clear", "§6最终首领已被击败，本轮挑战完成。"));
             game.setGameState(GameState.ENDED);
             return;
         }
@@ -1002,11 +1073,11 @@ public class RoundManager {
             shopTemplate = StageManager.getAnyStageByType(currentTier, "SHOP");
         }
         if (shopTemplate == null) {
-            game.broadcast("§c未找到决战前商店关卡，无法继续推进。");
+            game.broadcast(MessageManager.text("round.boss-prep-missing", "?c??????????????????"));
             game.setGameState(GameState.ENDED);
             return;
         }
-        game.broadcast("§6已抵达决战前补给站。请完成补给后前往 Boss。");
+        game.broadcast(MessageManager.text("round.boss-prep-enter", "?6???????????????????????"));
         startStage(shopTemplate);
     }
 
@@ -1016,11 +1087,11 @@ public class RoundManager {
             bossTemplate = StageManager.getAnyStageByType(currentTier, "BOSS");
         }
         if (bossTemplate == null) {
-            game.broadcast("§c未找到 Boss 关卡，无法继续推进。");
+            game.broadcast(MessageManager.text("round.boss-stage-missing", "?c???????????????"));
             game.setGameState(GameState.ENDED);
             return;
         }
-        game.broadcast("§4补给完成，前方即为 Boss 关卡。");
+        game.broadcast(MessageManager.text("round.boss-stage-enter", "?4??????????????"));
         startStage(bossTemplate);
     }
 
@@ -1034,16 +1105,28 @@ public class RoundManager {
                     return;
                 }
                 if (voteCountdown <= 0) {
-                    int fallbackChoice = currentNodeChoices.keySet().stream().min(Integer::compareTo).orElse(1);
+                    int fallbackChoice = majorSelectionPhase
+                            ? currentMajorChoices.keySet().stream().min(Integer::compareTo).orElse(1)
+                            : currentNodeChoices.keySet().stream().min(Integer::compareTo).orElse(1);
                     for (Player player : game.getActiveOnlinePlayers()) {
                         playerVotes.putIfAbsent(player.getUniqueId(), fallbackChoice);
                     }
-                    game.broadcast("§e投票超时，未选择的玩家将默认投给节点 " + fallbackChoice + "。");
+                    game.broadcast(MessageManager.format(
+                            majorSelectionPhase ? "round.vote-timeout-major" : "round.vote-timeout",
+                            majorSelectionPhase
+                                    ? "?e??????????????????? %target%?"
+                                    : "?e???????????????? %target%?",
+                            "target", majorSelectionPhase ? fallbackChoice : ("?? " + fallbackChoice)
+                    ));
                     resolveVotes();
                     return;
                 }
                 if (voteCountdown == LunarProject.getInstance().getVoteTimeoutSeconds() || voteCountdown <= 5 || voteCountdown % 10 == 0) {
-                    game.broadcast("§7投票剩余 §f" + voteCountdown + "§7 秒。");
+                    game.broadcast(MessageManager.format(
+                            "round.vote-countdown",
+                            "?7???? ?f%seconds%?7 ??",
+                            "seconds", voteCountdown
+                    ));
                 }
                 voteCountdown--;
             }
@@ -1075,7 +1158,11 @@ public class RoundManager {
                     return;
                 }
                 if (readyCountdown == LunarProject.getInstance().getReadyTimeoutSeconds() || readyCountdown <= 5 || readyCountdown % 10 == 0) {
-                    game.broadcast("§7房间将在 §f" + readyCountdown + "§7 秒后自动推进。");
+                    game.broadcast(MessageManager.format(
+                            "round.ready-countdown",
+                            "?7???? ?f%seconds%?7 ???????",
+                            "seconds", readyCountdown
+                    ));
                 }
                 readyCountdown--;
             }
@@ -1179,7 +1266,7 @@ public class RoundManager {
             RewardOption fallbackReward = rewardOptions.get(0);
             if (RewardManager.applyReward(game, player, fallbackReward)) {
                 resolvedRewardPlayers.add(playerId);
-                player.sendMessage("§e奖励选择超时，已自动选择：§f" + fallbackReward.name());
+                player.sendMessage(MessageManager.format("round.reward-timeout-picked", "§e奖励选择超时，已自动选择：§f%name%", "name", fallbackReward.name()));
             }
         }
         checkRewardResolution();
@@ -1199,6 +1286,26 @@ public class RoundManager {
     }
 
     private boolean applyShopOffer(Player player, ShopOffer offer) {
+        if (isMinimalShopCatalogEnabled()) {
+            if (offer == null) {
+                return false;
+            }
+            if (!SHOP_OFFER_RELIC.equals(offer.id())) {
+                return false;
+            }
+            return RewardManager.applyReward(
+                    game,
+                    player,
+                    new RewardOption(
+                            RewardOption.RewardType.RELIC,
+                            SHOP_OFFER_RELIC,
+                            "测试饰品样品",
+                            "COMMON",
+                            "用于测试商店购买饰品流程。",
+                            "Demo_Relic_Test"
+                    )
+            );
+        }
         return switch (offer.id()) {
             case SHOP_OFFER_HEAL -> {
                 if (player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH) != null) {
@@ -1222,7 +1329,7 @@ public class RoundManager {
                     new RewardOption(RewardOption.RewardType.RELIC, SHOP_OFFER_RELIC, "测试饰品样品", "COMMON", "用于测试商店购买饰品流程。", "Demo_Relic_Test")
             );
             case SHOP_OFFER_SYNTH -> {
-                player.sendMessage("§e饰品合成系统暂未实装，当前只保留了接口按钮。");
+                player.sendMessage(MessageManager.text("round.synth-placeholder", "§e饰品合成系统暂未实装，当前只保留了接口按钮。"));
                 yield true;
             }
             default -> false;
@@ -1243,14 +1350,26 @@ public class RoundManager {
         }
         for (Player player : game.getActiveOnlinePlayers()) {
             game.addCoins(player.getUniqueId(), coinAmount);
-            player.sendMessage("§6获得碎金 §f+" + coinAmount + "§6，当前持有 §f" + game.getCoins(player.getUniqueId()));
+            player.sendMessage(MessageManager.format(
+                    "round.combat-coins",
+                    "§6获得碎金 §f+%coins%§6，当前持有 §f%current%",
+                    "coins", coinAmount,
+                    "current", game.getCoins(player.getUniqueId())
+            ));
         }
     }
 
     private void broadcastShopServices() {
-        game.broadcast("§e当前商店商品：");
-        for (ShopOffer offer : getShopOffers(UUID.randomUUID())) {
-            game.broadcast("§b- " + offer.id() + " §7-> §f" + offer.name() + "§7 | 价格: " + offer.cost());
+        game.broadcast(MessageManager.text("round.shop-list-title", "?e???????"));
+        for (ShopOffer offer : getActiveShopOffers(UUID.randomUUID())) {
+            String priceText = offer.cost() > 0 ? offer.cost() + " ??" : "??";
+            game.broadcast(MessageManager.format(
+                    "round.shop-list-entry",
+                    "?b- ?f%name%?7 | ???%price%?8 | ?????%alias%",
+                    "name", offer.name(),
+                    "price", priceText,
+                    "alias", getShopOfferAlias(offer.id())
+            ));
         }
     }
 
@@ -1268,12 +1387,26 @@ public class RoundManager {
         return game.getLobbyMap().getSpawnLocation();
     }
 
+    public String getShopOfferAlias(String offerId) {
+        return switch (offerId.toLowerCase(Locale.ROOT)) {
+            case SHOP_OFFER_HEAL -> "疗养";
+            case SHOP_OFFER_SANITY -> "理智";
+            case SHOP_OFFER_RELIC -> "饰品";
+            case SHOP_OFFER_SYNTH -> "合成";
+            default -> offerId;
+        };
+    }
+
+    private boolean isMinimalShopCatalogEnabled() {
+        return true;
+    }
+
     private String normalizeShopOfferId(String offerId) {
         return switch (offerId.toLowerCase(Locale.ROOT)) {
-            case "heal" -> SHOP_OFFER_HEAL;
-            case "sanity" -> "clear_mind";
-            case "relic" -> SHOP_OFFER_RELIC;
-            case "synth", "combine", "craft" -> SHOP_OFFER_SYNTH;
+            case "heal", "疗养", "治疗" -> SHOP_OFFER_HEAL;
+            case "sanity", "理智", "校准" -> SHOP_OFFER_SANITY;
+            case "relic", "饰品" -> SHOP_OFFER_RELIC;
+            case "synth", "combine", "craft", "合成" -> SHOP_OFFER_SYNTH;
             default -> offerId;
         };
     }
@@ -1319,9 +1452,25 @@ public class RoundManager {
             case "SHOP" -> "商店";
             case "REST" -> "休息";
             case "EVENT" -> "事件";
-            case "BOSS" -> "Boss";
+            case "BOSS" -> "首领战";
             default -> "未知阶段";
         };
+    }
+
+    private String formatRarity(String rarity) {
+        return switch (rarity.toUpperCase(Locale.ROOT)) {
+            case "COMMON" -> "普通";
+            case "UNCOMMON" -> "优秀";
+            case "RARE" -> "稀有";
+            default -> rarity;
+        };
+    }
+
+    private String formatStageCode(String stageId) {
+        if (stageId == null || stageId.isBlank()) {
+            return "未命名节点";
+        }
+        return stageId.replace('_', '-');
     }
 }
 

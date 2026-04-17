@@ -6,7 +6,10 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 public final class CombatVariableUtil {
     public static final String VAR_ATTACK_TYPE = "attack_type";
@@ -29,10 +32,16 @@ public final class CombatVariableUtil {
 
     public static final String VAR_BLEED_INTENSITY = "bleed_intensity";
     public static final String VAR_RUPTURE_INTENSITY = "rupture_intensity";
+    public static final String VAR_RUPTURE_APPLICATION_MARKER = "rupture_application_marker";
     public static final String VAR_POISE_INTENSITY = "poise_intensity";
     public static final String VAR_POISE_COUNT = "poise_count";
     public static final String VAR_BREATH_INTENSITY = "breath_intensity";
     public static final String VAR_BREATH_COUNT = "breath_count";
+    public static final String VAR_PENDING_CRIT_MULTIPLIER = "pending_crit_multiplier";
+    public static final String VAR_PENDING_CRIT_RESULT = "pending_crit_result";
+    public static final String VAR_LAST_CRIT_RATE = "last_crit_rate";
+    public static final String VAR_LAST_CRIT_DAMAGE_MULTIPLIER = "last_crit_damage_multiplier";
+    private static final Map<UUID, PendingSelfStatusHit> pendingSelfStatusHits = new HashMap<>();
 
     private CombatVariableUtil() {
     }
@@ -126,13 +135,25 @@ public final class CombatVariableUtil {
             return false;
         }
 
+        pendingSelfStatusHits.put(
+                target.getUniqueId(),
+                new PendingSelfStatusHit(amount, attackType, attackSin)
+        );
         setAttackPayload(target, attackType, attackSin, DAMAGE_MODE_STATUS);
         try {
-            target.damage(amount, target);
+            target.damage(amount);
             return true;
         } finally {
+            pendingSelfStatusHits.remove(target.getUniqueId());
             clearAttackPayload(target);
         }
+    }
+
+    public static PendingSelfStatusHit getPendingSelfStatusHit(Entity entity) {
+        if (entity == null) {
+            return null;
+        }
+        return pendingSelfStatusHits.get(entity.getUniqueId());
     }
 
     // Poise is still the live Mythic variable name, but we also mirror a breath alias
@@ -154,5 +175,8 @@ public final class CombatVariableUtil {
 
         setInt(entity, VAR_BREATH_INTENSITY, intensity);
         setInt(entity, VAR_BREATH_COUNT, count);
+    }
+
+    public record PendingSelfStatusHit(double amount, String attackType, String attackSin) {
     }
 }

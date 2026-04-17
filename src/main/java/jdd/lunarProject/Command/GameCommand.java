@@ -1,5 +1,6 @@
 package jdd.lunarProject.Command;
 
+import jdd.lunarProject.Config.MessageManager;
 import jdd.lunarProject.Game.Game;
 import jdd.lunarProject.Game.GameManager;
 import jdd.lunarProject.Game.PlayerClassManager;
@@ -52,7 +53,7 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 
     private void handleMenu(CommandSender sender) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§c只有玩家可以打开主菜单。");
+            send(sender, "command.only-player-menu", "§c只有玩家可以打开主菜单。");
             return;
         }
         LunarProject.getInstance().getGuiManager().openMainMenu(player);
@@ -60,29 +61,29 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 
     private void handleCreate(CommandSender sender) {
         Game newGame = GameManager.createGame();
-        sender.sendMessage("§a已创建房间：§f" + newGame.getGameId());
-        sender.sendMessage("§7使用 §f/game join " + newGame.getGameId() + " §7加入该房间。");
+        send(sender, "command.create-success", "§a已创建房间：§f%room%", "room", newGame.getGameId());
+        send(sender, "command.create-hint", "§7使用 §f/game join %room% §7加入该房间。", "room", newGame.getGameId());
     }
 
     private void handleJoin(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§c只有玩家可以加入房间。");
+            send(sender, "command.only-player-join", "§c只有玩家可以加入房间。");
             return;
         }
 
         if (args.length < 2) {
-            sender.sendMessage("§c用法：/game join <房间ID>");
+            send(sender, "command.join-usage", "§c用法：/game join <房间ID>");
             return;
         }
 
         if (GameManager.getPlayerGame(player.getUniqueId()) != null) {
-            sender.sendMessage("§c你已经在一个房间中，不能重复加入。");
+            send(sender, "command.already-in-room", "§c你已经在一个房间中，不能重复加入。");
             return;
         }
 
         Game targetGame = GameManager.getGame(args[1]);
         if (targetGame == null) {
-            sender.sendMessage("§c未找到房间：§f" + args[1]);
+            send(sender, "command.room-not-found", "§c未找到房间：§f%room%", "room", args[1]);
             return;
         }
 
@@ -91,13 +92,13 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 
     private void handleLeave(CommandSender sender) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§c只有玩家可以离开房间。");
+            send(sender, "command.only-player-leave", "§c只有玩家可以离开房间。");
             return;
         }
 
         Game game = GameManager.getPlayerGame(player.getUniqueId());
         if (game == null) {
-            sender.sendMessage("§c你当前不在任何房间中。");
+            send(sender, "command.not-in-room", "§c你当前不在任何房间中。");
             return;
         }
 
@@ -106,51 +107,51 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 
     private void handleStart(CommandSender sender) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§c只有玩家可以启动房间。");
+            send(sender, "command.only-player-start", "§c只有玩家可以启动房间。");
             return;
         }
 
         Game game = GameManager.getPlayerGame(player.getUniqueId());
         if (game == null) {
-            sender.sendMessage("§c你当前不在任何房间中。");
+            send(sender, "command.not-in-room", "§c你当前不在任何房间中。");
             return;
         }
 
         game.start();
-        sender.sendMessage("§a已尝试启动当前房间。");
+        send(sender, "command.start-attempt", "§a已尝试启动当前房间。");
     }
 
     private void handleStop(CommandSender sender, String[] args) {
         if (args.length >= 2) {
             if (!canForceStop(sender)) {
-                sender.sendMessage("§c你没有权限强制关闭指定房间。");
+                send(sender, "command.stop-no-permission", "§c你没有权限强制关闭指定房间。");
                 return;
             }
 
             Game game = GameManager.getGame(args[1]);
             if (game == null) {
-                sender.sendMessage("§c未找到房间：§f" + args[1]);
+                send(sender, "command.room-not-found", "§c未找到房间：§f%room%", "room", args[1]);
                 return;
             }
 
             game.stop();
-            sender.sendMessage("§a已强制关闭房间：§f" + args[1]);
+            send(sender, "command.stop-success-force", "§a已强制关闭房间：§f%room%", "room", args[1]);
             return;
         }
 
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§c控制台请使用 /game stop <房间ID>。");
+            send(sender, "command.stop-console-usage", "§c控制台请使用 /game stop <房间ID>。");
             return;
         }
 
         Game game = GameManager.getPlayerGame(player.getUniqueId());
         if (game == null) {
-            sender.sendMessage("§c你当前不在任何房间中。");
+            send(sender, "command.not-in-room", "§c你当前不在任何房间中。");
             return;
         }
 
         game.stop();
-        sender.sendMessage("§a已关闭你所在的当前房间。");
+        send(sender, "command.stop-success-self", "§a已关闭你所在的当前房间。");
     }
 
     private void handleStatus(CommandSender sender, String[] args) {
@@ -159,13 +160,16 @@ public class GameCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        sender.sendMessage("§6===== 房间状态 =====");
-        sender.sendMessage("§7房间 ID：§f" + game.getGameId());
-        sender.sendMessage("§7房间状态：§f" + game.getGameState());
-        sender.sendMessage("§7玩家情况：§f存活 " + game.getActivePlayerCount() + " / 阵亡 " + game.getDeadPlayerCount() + " / 总计 " + game.getTotalPlayerCount());
-        sender.sendMessage("§7当前回合：§f" + game.getRoundManager().getCurrentRound() + "/5");
-        sender.sendMessage("§7当前阶段：§f" + game.getRoundManager().getCurrentRoomType());
-        sender.sendMessage("§7阶段提示：§f" + game.getRoundManager().getStatusHint());
+        send(sender, "command.status-title", "§6===== 房间状态 =====");
+        send(sender, "command.status-room-id", "§7房间编号：§f%room%", "room", game.getGameId());
+        send(sender, "command.status-room-state", "§7房间状态：§f%state%", "state", formatGameState(game.getGameState()));
+        send(sender, "command.status-players", "§7玩家情况：§f存活 %alive% / 阵亡 %dead% / 总计 %total%",
+                "alive", game.getActivePlayerCount(),
+                "dead", game.getDeadPlayerCount(),
+                "total", game.getTotalPlayerCount());
+        send(sender, "command.status-round", "§7当前回合：§f%round%/5", "round", game.getRoundManager().getCurrentRound());
+        send(sender, "command.status-phase", "§7当前阶段：§f%phase%", "phase", formatRoomType(game.getRoundManager().getCurrentRoomType()));
+        send(sender, "command.status-hint", "§7阶段提示：§f%hint%", "hint", game.getRoundManager().getStatusHint());
 
         if (game.getRoundManager().isVotingPhase()) {
             for (String line : game.getRoundManager().getVoteOptionDisplay()) {
@@ -175,17 +179,17 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 
         if (sender instanceof Player player && GameManager.getPlayerGame(player.getUniqueId()) == game) {
             String className = PlayerClassManager.getSelectedClass(player);
-            sender.sendMessage("§7当前职业：§f" + (className.isBlank() ? "未选择" : className));
+            send(sender, "command.status-class", "§7当前职业：§f%class%", "class", className.isBlank() ? "未选择" : className);
             if (!PlayerClassManager.hasSelectedClass(player)) {
-                sender.sendMessage("§e你还没有选择职业。");
+                send(sender, "command.status-class-missing", "§e你还没有选择职业。");
             }
             if (game.getRoundManager().isRewardPhase()) {
-                sender.sendMessage("§6===== 当前奖励 =====");
+                send(sender, "command.status-reward-title", "§6===== 当前奖励 =====");
                 for (String line : game.getRoundManager().getRewardOptionDisplay(player)) {
                     sender.sendMessage(line);
                 }
             }
-            sender.sendMessage("§6===== 当前构筑 =====");
+            send(sender, "command.status-build-title", "§6===== 当前构筑 =====");
             for (String line : game.getBuildSummary(player.getUniqueId())) {
                 sender.sendMessage("§7" + line);
             }
@@ -194,21 +198,21 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 
     private void handleBuild(CommandSender sender) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§c只有玩家可以查看当前构筑。");
+            send(sender, "command.only-player-build", "§c只有玩家可以查看当前构筑。");
             return;
         }
 
         Game game = GameManager.getPlayerGame(player.getUniqueId());
         if (game == null) {
-            sender.sendMessage("§c你当前不在任何运行中的房间中。");
+            send(sender, "command.not-in-running-room", "§c你当前不在运行中的房间中。");
             return;
         }
 
         if (!PlayerClassManager.hasSelectedClass(player)) {
-            sender.sendMessage("§e你当前还没有选择职业。");
+            send(sender, "command.status-class-missing", "§e你还没有选择职业。");
         }
 
-        sender.sendMessage("§6===== 当前构筑 =====");
+        send(sender, "command.status-build-title", "§6===== 当前构筑 =====");
         for (String line : game.getBuildSummary(player.getUniqueId())) {
             sender.sendMessage("§7" + line);
         }
@@ -216,18 +220,18 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 
     private void handleVote(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§c只有玩家可以投票。");
+            send(sender, "command.only-player-vote", "§c只有玩家可以投票。");
             return;
         }
 
         if (args.length < 2) {
-            sender.sendMessage("§c用法：/game vote <编号>");
+            send(sender, "command.vote-usage", "§c用法：/game vote <编号>");
             return;
         }
 
         Game game = GameManager.getPlayerGame(player.getUniqueId());
         if (game == null || !game.isRunning()) {
-            sender.sendMessage("§c你当前不在运行中的房间中。");
+            send(sender, "command.not-in-running-room", "§c你当前不在运行中的房间中。");
             return;
         }
 
@@ -235,19 +239,19 @@ public class GameCommand implements CommandExecutor, TabCompleter {
             int choice = Integer.parseInt(args[1]);
             game.getRoundManager().castVote(player, choice);
         } catch (NumberFormatException exception) {
-            sender.sendMessage("§c请输入有效的数字编号。");
+            send(sender, "command.invalid-number", "§c请输入有效的数字编号。");
         }
     }
 
     private void handleProceed(CommandSender sender) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§c只有玩家可以推进流程。");
+            send(sender, "command.only-player-proceed", "§c只有玩家可以推进流程。");
             return;
         }
 
         Game game = GameManager.getPlayerGame(player.getUniqueId());
         if (game == null || !game.isRunning()) {
-            sender.sendMessage("§c你当前不在运行中的房间中。");
+            send(sender, "command.not-in-running-room", "§c你当前不在运行中的房间中。");
             return;
         }
 
@@ -256,18 +260,18 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 
     private void handleShop(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§c只有玩家可以使用商店。");
+            send(sender, "command.only-player-shop", "§c只有玩家可以使用商店。");
             return;
         }
 
         if (args.length < 3 || !"buy".equalsIgnoreCase(args[1])) {
-            sender.sendMessage("§c用法：/game shop buy <商品ID>");
+            send(sender, "command.shop-usage", "§c用法：/game shop buy <商品代号>");
             return;
         }
 
         Game game = GameManager.getPlayerGame(player.getUniqueId());
         if (game == null || !game.isRunning()) {
-            sender.sendMessage("§c你当前不在运行中的房间中。");
+            send(sender, "command.not-in-running-room", "§c你当前不在运行中的房间中。");
             return;
         }
 
@@ -276,18 +280,18 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 
     private void handleEvent(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§c只有玩家可以处理事件。");
+            send(sender, "command.only-player-event", "§c只有玩家可以处理事件。");
             return;
         }
 
         if (args.length < 3 || !"choose".equalsIgnoreCase(args[1])) {
-            sender.sendMessage("§c用法：/game event choose <1|2>");
+            send(sender, "command.event-usage", "§c用法：/game event choose <1|2>");
             return;
         }
 
         Game game = GameManager.getPlayerGame(player.getUniqueId());
         if (game == null || !game.isRunning()) {
-            sender.sendMessage("§c你当前不在运行中的房间中。");
+            send(sender, "command.not-in-running-room", "§c你当前不在运行中的房间中。");
             return;
         }
 
@@ -296,18 +300,18 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 
     private void handleReward(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§c只有玩家可以选择奖励。");
+            send(sender, "command.only-player-reward", "§c只有玩家可以选择奖励。");
             return;
         }
 
         if (args.length < 3 || !"choose".equalsIgnoreCase(args[1])) {
-            sender.sendMessage("§c用法：/game reward choose <1|2|3>");
+            send(sender, "command.reward-usage", "§c用法：/game reward choose <1|2|3>");
             return;
         }
 
         Game game = GameManager.getPlayerGame(player.getUniqueId());
         if (game == null || !game.isRunning()) {
-            sender.sendMessage("§c你当前不在运行中的房间中。");
+            send(sender, "command.not-in-running-room", "§c你当前不在运行中的房间中。");
             return;
         }
 
@@ -315,19 +319,19 @@ public class GameCommand implements CommandExecutor, TabCompleter {
             int choice = Integer.parseInt(args[2]);
             game.getRoundManager().handleRewardChoice(player, choice);
         } catch (NumberFormatException exception) {
-            sender.sendMessage("§c请输入有效的奖励编号。");
+            send(sender, "command.invalid-reward-number", "§c请输入有效的奖励编号。");
         }
     }
 
     private void handleClass(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§c只有玩家可以选择职业。");
+            send(sender, "command.only-player-class", "§c只有玩家可以选择职业。");
             return;
         }
 
         Game game = GameManager.getPlayerGame(player.getUniqueId());
         if (game == null) {
-            sender.sendMessage("§c你当前不在任何房间中。");
+            send(sender, "command.not-in-room", "§c你当前不在任何房间中。");
             return;
         }
 
@@ -338,15 +342,15 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 
         if ("test".equalsIgnoreCase(args[1]) || PlayerClassManager.TEST_CLASS_ID.equalsIgnoreCase(args[1])) {
             if (!PlayerClassManager.applyClass(player, PlayerClassManager.TEST_CLASS_ID)) {
-                sender.sendMessage("§c测试职业初始化失败，请检查 config.yml 中的职业配置。");
+                send(sender, "command.class-init-failed", "§c测试职业初始化失败，请检查 config.yml 中的职业配置。");
                 return;
             }
-            sender.sendMessage("§a已选择职业：§f" + PlayerClassManager.TEST_CLASS_ID);
+            send(sender, "command.class-selected", "§a已选择职业：§f%class%", "class", PlayerClassManager.TEST_CLASS_ID);
             LunarProject.getInstance().getGuiManager().refreshGame(game);
             return;
         }
 
-        sender.sendMessage("§c当前仅开放测试职业。");
+        send(sender, "command.class-only-test", "§c当前仅开放测试职业。");
     }
 
     private Game resolveGameForStatus(CommandSender sender, String[] args) {
@@ -359,9 +363,9 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 
         if (game == null) {
             if (!(sender instanceof Player) && !GameManager.getActiveGameIds().isEmpty()) {
-                sender.sendMessage("§7当前活跃房间：§f" + String.join(", ", GameManager.getActiveGameIds()));
+                send(sender, "command.active-rooms", "§7当前活跃房间：§f%rooms%", "rooms", String.join(", ", GameManager.getActiveGameIds()));
             } else {
-                sender.sendMessage("§c未找到目标房间。");
+                send(sender, "command.target-room-missing", "§c未找到目标房间。");
             }
         }
         return game;
@@ -371,22 +375,57 @@ public class GameCommand implements CommandExecutor, TabCompleter {
         return sender.isOp() || sender.hasPermission("lunarproject.admin");
     }
 
+    private String formatGameState(jdd.lunarProject.Game.GameState gameState) {
+        if (gameState == null) {
+            return "未知";
+        }
+        return switch (gameState) {
+            case WAITING -> "等待中";
+            case STARTING -> "准备开始";
+            case STARTED -> "进行中";
+            case ENDED -> "已结束";
+        };
+    }
+
+    private String formatRoomType(String roomType) {
+        if (roomType == null || roomType.isBlank()) {
+            return "未知";
+        }
+        String upper = roomType.toUpperCase(Locale.ROOT);
+        if ("MAJOR_SELECT".equals(upper)) {
+            return "大关卡选择";
+        }
+        if ("VOTING".equals(upper)) {
+            return "节点投票";
+        }
+        if (upper.startsWith("REWARD/")) {
+            return "奖励选择";
+        }
+        if ("LOBBY".equals(upper)) {
+            return "大厅准备";
+        }
+        return switch (upper) {
+            case "NORMAL" -> "普通战";
+            case "ELITE" -> "精英战";
+            case "SHOP" -> "商店";
+            case "REST" -> "休息";
+            case "EVENT" -> "事件";
+            case "BOSS" -> "首领战";
+            default -> roomType;
+        };
+    }
+
     private void sendHelp(CommandSender sender) {
-        sender.sendMessage("§6===== /game 指令帮助 =====");
-        sender.sendMessage("§f/game §7- 打开主菜单");
-        sender.sendMessage("§f/game create §7- 创建房间");
-        sender.sendMessage("§f/game join <id> §7- 加入房间");
-        sender.sendMessage("§f/game leave §7- 离开房间");
-        sender.sendMessage("§f/game start §7- 启动当前房间");
-        sender.sendMessage("§f/game status [id] §7- 查看房间状态");
-        sender.sendMessage("§f/game build §7- 查看当前构筑");
-        sender.sendMessage("§f/game class [test] §7- 选择职业");
-        sender.sendMessage("§f/game vote <n> §7- 投票选择下一小关卡");
-        sender.sendMessage("§f/game reward choose <n> §7- 选择奖励");
-        sender.sendMessage("§f/game shop buy <id> §7- 购买商店商品");
-        sender.sendMessage("§f/game event choose <1|2> §7- 选择事件选项");
-        sender.sendMessage("§f/game proceed §7- 标记准备推进");
-        sender.sendMessage("§f/game stop [id] §7- 关闭房间");
+        for (String line : MessageManager.list("command.help", List.of(
+                "§6===== /game 指令帮助 =====",
+                "§f/game §7- 打开主菜单"
+        ))) {
+            sender.sendMessage(line);
+        }
+    }
+
+    private void send(CommandSender sender, String key, String fallback, Object... placeholders) {
+        sender.sendMessage(MessageManager.format(key, fallback, placeholders));
     }
 
     @Override
@@ -423,10 +462,7 @@ public class GameCommand implements CommandExecutor, TabCompleter {
         if (args.length == 3) {
             switch (args[0].toLowerCase(Locale.ROOT)) {
                 case "shop" -> {
-                    completions.add("field_patch");
-                    completions.add("clear_mind");
                     completions.add("demo_terminal_chip");
-                    completions.add("synthesis_placeholder");
                 }
                 case "event" -> {
                     completions.add("1");

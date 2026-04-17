@@ -7,6 +7,7 @@ import jdd.lunarProject.Game.GameManager;
 import jdd.lunarProject.Game.PlayerClassManager;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Player;
 
 public class ProjectMoonExpansion extends PlaceholderExpansion {
@@ -28,6 +29,13 @@ public class ProjectMoonExpansion extends PlaceholderExpansion {
 
     private String wholeNumber(double value) {
         return Long.toString(Math.round(value));
+    }
+
+    private double resolveMaxHealth(Player player) {
+        if (player.getAttribute(Attribute.MAX_HEALTH) != null) {
+            return player.getAttribute(Attribute.MAX_HEALTH).getValue();
+        }
+        return player.getHealth();
     }
 
     private boolean isCombatUiVisible(Player player) {
@@ -68,9 +76,17 @@ public class ProjectMoonExpansion extends PlaceholderExpansion {
             if (!combatUiVisible) {
                 return "";
             }
-            return "§b理智 §f" + variables.getInt("sanity")
+            return "§c生命 §f" + wholeNumber(onlinePlayer.getHealth())
+                    + "/" + wholeNumber(resolveMaxHealth(onlinePlayer))
+                    + "  §b理智 §f" + variables.getInt("sanity")
                     + "  §e混乱抗性 §f" + wholeNumber(variables.getDouble("yellow_bar_current"))
                     + "/" + wholeNumber(variables.getDouble("yellow_bar_max"));
+        }
+        if (params.equalsIgnoreCase("health_current")) {
+            return combatUiVisible ? wholeNumber(onlinePlayer.getHealth()) : "0";
+        }
+        if (params.equalsIgnoreCase("health_max")) {
+            return combatUiVisible ? wholeNumber(resolveMaxHealth(onlinePlayer)) : "0";
         }
         if (params.equalsIgnoreCase("sanity")) {
             return combatUiVisible ? String.valueOf(variables.getInt("sanity")) : "0";

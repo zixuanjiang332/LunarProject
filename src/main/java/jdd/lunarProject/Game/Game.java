@@ -5,6 +5,7 @@ import jdd.lunarProject.Build.BuildModifierType;
 import jdd.lunarProject.Build.PlayerRunData;
 import jdd.lunarProject.Build.RelicDefinition;
 import jdd.lunarProject.Build.RelicManager;
+import jdd.lunarProject.Config.MessageManager;
 import jdd.lunarProject.LunarProject;
 import jdd.lunarProject.Tool.YellowBarUtil;
 import org.bukkit.Bukkit;
@@ -72,12 +73,19 @@ public class Game {
     public void setGameState(GameState newState) {
         gameState = newState;
         cancelCountdown();
-
         switch (newState) {
-            case WAITING -> broadcast("§e等待玩家中... (§f" + activePlayers.size() + "/" + getMinPlayers() + "§e)");
+            case WAITING -> broadcast(MessageManager.format(
+                    "game.waiting",
+                    "§e等待玩家中... (§f%current%/%required%§e)",
+                    "current", activePlayers.size(),
+                    "required", getMinPlayers()
+            ));
             case STARTING -> beginStartingCountdown();
             case STARTED -> {
-                sendTitle("§4旅途开始", "§c前路已经展开");
+                sendTitle(
+                        MessageManager.text("game.start-title", "§4旅途开始"),
+                        MessageManager.text("game.start-subtitle", "§c前路已经展开")
+                );
                 roundManager.beginRunSelection();
             }
             case ENDED -> beginEndCountdown();
@@ -86,35 +94,36 @@ public class Game {
 
     public boolean playerJoin(Player player) {
         if (gameState == GameState.STARTED || gameState == GameState.ENDED) {
-            player.sendMessage("§c这个房间已经开始或已经结束。");
+            player.sendMessage(MessageManager.text("game.room-unavailable", "§c这个房间已经开始或已经结束。"));
             return false;
         }
-
         if (activePlayers.size() >= getMaxPlayers()) {
-            player.sendMessage("§c这个房间已经满员。");
+            player.sendMessage(MessageManager.text("game.room-full", "§c这个房间已经满员。"));
             return false;
         }
-
         UUID uuid = player.getUniqueId();
         if (activePlayers.contains(uuid) || deadPlayers.contains(uuid)) {
-            player.sendMessage("§e你已经在这个房间中了。");
+            player.sendMessage(MessageManager.text("game.room-already-joined", "§e你已经在这个房间中了。"));
             return false;
         }
-
         activePlayers.add(uuid);
         getOrCreateRunData(uuid);
         GameManager.setPlayerGame(uuid, this);
         player.setGameMode(GameMode.SURVIVAL);
         PlayerClassManager.clearClassState(player);
         LunarProject.getInstance().getGuiManager().ensureMenuItem(player);
-
         Location spawn = lobbyMap.getSpawnLocation();
         if (spawn != null) {
             player.teleport(spawn);
         }
-
-        player.sendMessage("§e已加入房间，请先选择职业后再开始对局。");
-        broadcast("§a" + player.getName() + " 加入了房间。 (§f" + activePlayers.size() + "/" + getMaxPlayers() + "§a)");
+        player.sendMessage(MessageManager.text("game.join-select-class", "§e已加入房间，请先选择职业后再开始对局。"));
+        broadcast(MessageManager.format(
+                "game.join-broadcast",
+                "§a%player% 加入了房间。(§f%current%/%max%§a)",
+                "player", player.getName(),
+                "current", activePlayers.size(),
+                "max", getMaxPlayers()
+        ));
         LunarProject.getInstance().getGuiManager().refreshGame(this);
         LunarProject.getInstance().getGuiManager().openClassSelect(player);
         if (gameState == GameState.WAITING && activePlayers.size() >= getMinPlayers()) {
@@ -128,24 +137,29 @@ public class Game {
         boolean wasActive = activePlayers.remove(uuid);
         boolean wasDead = deadPlayers.remove(uuid);
         if (!wasActive && !wasDead) {
-            player.sendMessage("§c你当前不在 LunarProject 房间中。");
+            player.sendMessage(MessageManager.text("game.room-not-in-game", "§c你当前不在游戏房间中。"));
             return;
         }
-
         GameManager.setPlayerGame(uuid, null);
         playerRunData.remove(uuid);
         resetPlayerState(player);
-        player.sendMessage("§e你已离开当前房间。");
-
+        player.sendMessage(MessageManager.text("game.leave-self", "§e你已离开当前房间。"));
         if (gameState == GameState.WAITING || gameState == GameState.STARTING) {
-            broadcast("§c" + player.getName() + " 离开了房间。");
+            broadcast(MessageManager.format(
+                    "game.leave-prestart",
+                    "?c%player% ??????",
+                    "player", player.getName()
+            ));
             LunarProject.getInstance().getGuiManager().refreshGame(this);
             checkPlayerCount();
             return;
         }
-
         if (gameState == GameState.STARTED) {
-            broadcast("§c" + player.getName() + " 离开了当前这一局。");
+            broadcast(MessageManager.format(
+                    "game.leave-running",
+                    "?c%player% ?????????",
+                    "player", player.getName()
+            ));
             LunarProject.getInstance().getGuiManager().refreshGame(this);
             checkPlayerCount();
             if (!activePlayers.isEmpty()) {
@@ -161,35 +175,43 @@ public class Game {
         if (!activePlayers.remove(uuid)) {
             return;
         }
-
         deadPlayers.add(uuid);
         player.setGameMode(GameMode.SPECTATOR);
-        broadcast("§c玩家 " + player.getName() + " 已阵亡。");
+        broadcast(MessageManager.format(
+                "game.death",
+                "?c?? %player% ????",
+                "player", player.getName()
+        ));
         LunarProject.getInstance().getGuiManager().refreshGame(this);
-
         if (activePlayers.isEmpty()) {
-            broadcast("§4所有存活玩家都已倒下，本局失败。");
+            broadcast(MessageManager.text("game.all-dead", "?4????????????????"));
             setGameState(GameState.ENDED);
         }
     }
 
     public void handleDisconnect(Player player) {
         UUID uuid = player.getUniqueId();
-
         if (gameState == GameState.WAITING || gameState == GameState.STARTING) {
             if (activePlayers.remove(uuid) || deadPlayers.remove(uuid)) {
                 GameManager.setPlayerGame(uuid, null);
                 playerRunData.remove(uuid);
-                broadcast("§c" + player.getName() + " 在准备阶段断线。");
+                broadcast(MessageManager.format(
+                        "game.disconnect-prestart",
+                        "?c%player% ????????",
+                        "player", player.getName()
+                ));
                 LunarProject.getInstance().getGuiManager().refreshGame(this);
                 checkPlayerCount();
             }
             return;
         }
-
         if (gameState == GameState.STARTED && activePlayers.remove(uuid)) {
             deadPlayers.add(uuid);
-            broadcast("§c" + player.getName() + " 在对局中断线，已视为战败。");
+            broadcast(MessageManager.format(
+                    "game.disconnect-running",
+                    "?c%player% ?????????????",
+                    "player", player.getName()
+            ));
             LunarProject.getInstance().getGuiManager().refreshGame(this);
             if (activePlayers.isEmpty()) {
                 setGameState(GameState.ENDED);
@@ -207,10 +229,9 @@ public class Game {
             player.setGameMode(GameMode.SPECTATOR);
             player.teleport(getCurrentAnchorLocation());
             LunarProject.getInstance().getGuiManager().ensureMenuItem(player);
-            player.sendMessage("§e你已作为旁观者重新连接到本局。");
+            player.sendMessage(MessageManager.text("game.reconnect-spectator", "?e???????????????"));
             return;
         }
-
         if (activePlayers.contains(uuid)) {
             player.setGameMode(GameMode.SURVIVAL);
             player.teleport(getCurrentAnchorLocation());
@@ -218,7 +239,7 @@ public class Game {
             if (!isRunning() && !PlayerClassManager.hasSelectedClass(player)) {
                 LunarProject.getInstance().getGuiManager().openClassSelect(player);
             }
-            player.sendMessage("§a你已重新连接回当前房间。");
+            player.sendMessage(MessageManager.text("game.reconnect-player", "?a????????????"));
         }
     }
 
@@ -347,7 +368,7 @@ public class Game {
         PlayerRunData runData = getOrCreateRunData(uuid);
         runData.getTemporaryModifiers().merge(modifierType, amount, Double::sum);
         runData.incrementRewardCount();
-        runData.getRewardHistory().add(sourceName + " (" + modifierType + " " + formatSignedValue(amount) + ")");
+        runData.getRewardHistory().add(sourceName + "（" + formatModifierLabel(modifierType) + " " + formatSignedValue(amount) + "）");
     }
 
     public void recordReward(UUID uuid, String rewardEntry) {
@@ -442,34 +463,34 @@ public class Game {
             return lines;
         }
 
-        lines.add("已领取奖励: " + runData.getRewardCount());
-        lines.add("月蚀碎金: " + runData.getLunarCoins());
+        lines.add("已领取奖励：" + runData.getRewardCount());
+        lines.add("月蚀碎金：" + runData.getLunarCoins());
         if (runData.getRelicIds().isEmpty()) {
-            lines.add("饰品: 无");
+            lines.add("饰品：无");
         } else {
             List<String> relicNames = new ArrayList<>();
             for (String relicId : runData.getRelicIds()) {
                 RelicDefinition relicDefinition = RelicManager.getRelic(relicId);
                 relicNames.add(relicDefinition != null ? relicDefinition.name() : relicId);
             }
-            lines.add("饰品: " + String.join(", ", relicNames));
+            lines.add("饰品：" + String.join("、", relicNames));
         }
 
         if (runData.getTemporaryModifiers().isEmpty()) {
-            lines.add("临时强化: 无");
+            lines.add("临时强化：无");
         } else {
             List<String> tempLines = new ArrayList<>();
             for (Map.Entry<BuildModifierType, Double> entry : runData.getTemporaryModifiers().entrySet()) {
-                tempLines.add(entry.getKey() + " " + formatSignedValue(entry.getValue()));
+                tempLines.add(formatModifierLabel(entry.getKey()) + " " + formatSignedValue(entry.getValue()));
             }
-            lines.add("临时强化: " + String.join(", ", tempLines));
+            lines.add("临时强化：" + String.join("、", tempLines));
         }
 
         if (runData.getRewardHistory().isEmpty()) {
-            lines.add("奖励记录: 无");
+            lines.add("奖励记录：无");
         } else {
             int fromIndex = Math.max(0, runData.getRewardHistory().size() - 5);
-            lines.add("最近奖励: " + String.join(" | ", runData.getRewardHistory().subList(fromIndex, runData.getRewardHistory().size())));
+            lines.add("最近奖励：" + String.join(" | ", runData.getRewardHistory().subList(fromIndex, runData.getRewardHistory().size())));
         }
         return lines;
     }
@@ -501,12 +522,12 @@ public class Game {
 
     private void beginStartingCountdown() {
         countdownTime = LunarProject.getInstance().getGameStartCountdown();
-        broadcast("§a人数已满足要求，准备开始对局。");
+        broadcast(MessageManager.text("game.enough-players", "§a人数已满足要求，准备开始对局。"));
         countdownTask = new BukkitRunnable() {
             @Override
             public void run() {
                 if (activePlayers.size() < getMinPlayers()) {
-                    broadcast("§c人数不足，开始倒计时已取消。");
+                    broadcast(MessageManager.text("game.not-enough-cancel", "§c人数不足，开始倒计时已取消。"));
                     setGameState(GameState.WAITING);
                     cancel();
                     return;
@@ -523,9 +544,12 @@ public class Game {
                 }
 
                 if (countdownTime % 5 == 0 || countdownTime <= 5) {
-                    broadcast("§e对局将在 §c" + countdownTime + " §e秒后开始。");
+                    broadcast(MessageManager.format("game.start-countdown", "§e对局将在 §c%seconds% §e秒后开始。", "seconds", countdownTime));
                     if (countdownTime <= 5) {
-                        sendTitle("§c" + countdownTime, "§e准备战斗");
+                        sendTitle(
+                                MessageManager.format("game.start-countdown-title", "§c%seconds%", "seconds", countdownTime),
+                                MessageManager.text("game.start-countdown-subtitle", "§e准备战斗")
+                        );
                     }
                 }
                 countdownTime--;
@@ -535,7 +559,10 @@ public class Game {
 
     private void beginEndCountdown() {
         countdownTime = 5;
-        sendTitle("§8本局结束", "§7正在清理房间...");
+        sendTitle(
+                MessageManager.text("game.end-title", "§8本局结束"),
+                MessageManager.text("game.end-subtitle", "§7正在清理房间...")
+        );
         countdownTask = new BukkitRunnable() {
             @Override
             public void run() {
@@ -544,7 +571,7 @@ public class Game {
                     cancel();
                     return;
                 }
-                broadcast("§c房间将在 " + countdownTime + " 秒后关闭。");
+                broadcast(MessageManager.format("game.end-countdown", "§c房间将在 %seconds% 秒后关闭。", "seconds", countdownTime));
                 countdownTime--;
             }
         }.runTaskTimer(LunarProject.getInstance(), 0L, 20L);
@@ -612,6 +639,16 @@ public class Game {
         return (value > 0 ? "+" : "") + String.format("%.2f", value);
     }
 
+    private String formatModifierLabel(BuildModifierType modifierType) {
+        return switch (modifierType) {
+            case DAMAGE_DEALT_MULT -> "伤害提高";
+            case DAMAGE_TAKEN_MULT -> "承伤修正";
+            case POST_COMBAT_HEAL_BONUS -> "战后恢复";
+            case SANITY_GAIN_BONUS -> "理智回复";
+            case FRAGILITY_BONUS -> "易损叠加";
+        };
+    }
+
     private boolean promptMissingClassSelection() {
         List<Player> missingPlayers = new ArrayList<>();
         for (Player player : getActiveOnlinePlayers()) {
@@ -624,9 +661,9 @@ public class Game {
             return true;
         }
 
-        broadcast("§c仍有玩家未选择职业，无法开始对局。");
+        broadcast(MessageManager.text("game.class-required-broadcast", "§c仍有玩家未选择职业，无法开始对局。"));
         for (Player player : missingPlayers) {
-            player.sendMessage("§e请先选择职业，目前可用职业：§f测试职业");
+            player.sendMessage(MessageManager.text("game.class-required-player", "§e请先选择职业，目前可用职业：§f测试职业"));
             LunarProject.getInstance().getGuiManager().openClassSelect(player);
         }
         return false;

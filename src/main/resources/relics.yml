@@ -4,7 +4,7 @@ relics:
     rarity: "COMMON"
     tags: ["demo", "placeholder"]
     description: "一枚仅用于验证奖励流程的演示饰品，当前不提供任何效果。"
-    effect_type: "DAMAGE_DEALT_MULT"
+    effect_type: "FRAGILITY_BONUS"
     effect_value: 0.0
     stack_rule: "UNIQUE"
     mythic_item_id: "Demo_Relic_Test"

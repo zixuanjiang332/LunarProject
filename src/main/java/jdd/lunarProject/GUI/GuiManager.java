@@ -8,6 +8,7 @@ import jdd.lunarProject.Build.RewardPoolDefinition;
 import jdd.lunarProject.Build.ServiceDefinition;
 import jdd.lunarProject.Game.Game;
 import jdd.lunarProject.Game.GameManager;
+import jdd.lunarProject.Game.GameState;
 import jdd.lunarProject.Game.PlayerClassManager;
 import jdd.lunarProject.Game.RoundManager;
 import jdd.lunarProject.Game.StageModels.StageTemplate;
@@ -201,10 +202,10 @@ public class GuiManager {
                     materialForPhase(roundManager.getCurrentRoomType()),
                     "房间 " + roomId,
                     List.of(
-                            "状态：" + listedGame.getGameState(),
+                            "状态：" + formatGameState(listedGame.getGameState()),
                             "人数：" + listedGame.getTotalPlayerCount(),
                             "回合：" + roundManager.getCurrentRound() + "/5",
-                            "阶段：" + roundManager.getCurrentRoomType(),
+                            "阶段：" + formatRoomType(roundManager.getCurrentRoomType()),
                             "目标：" + roundManager.getStatusHint()
                     ),
                     false
@@ -255,11 +256,11 @@ public class GuiManager {
 
         RoundManager roundManager = game.getRoundManager();
         session.setItem(4, createFeatureCard(Material.MAP, "房间 " + game.getGameId(), List.of(
-                "状态：" + game.getGameState(),
+                "状态：" + formatGameState(game.getGameState()),
                 "存活：" + game.getActivePlayerCount(),
                 "阵亡：" + game.getDeadPlayerCount(),
                 "回合：" + roundManager.getCurrentRound() + "/5",
-                "阶段：" + roundManager.getCurrentRoomType()
+                "阶段：" + formatRoomType(roundManager.getCurrentRoomType())
         ), true), null);
         session.setItem(13, createFeatureCard(materialForPhase(roundManager.getCurrentRoomType()), "当前目标", buildObjectiveLore(game), false), null);
         session.setItem(22, createFeatureCard(Material.HEART_OF_THE_SEA, "流程进度", List.of(
@@ -326,7 +327,7 @@ public class GuiManager {
         session.setItem(4, createFeatureCard(Material.BOOK, "构筑概览", List.of(
                 "房间：" + game.getGameId(),
                 "回合：" + game.getRoundManager().getCurrentRound() + "/5",
-                "阶段：" + game.getRoundManager().getCurrentRoomType()
+                "阶段：" + formatRoomType(game.getRoundManager().getCurrentRoomType())
         ), true), null);
 
         int[] detailSlots = {
@@ -378,19 +379,48 @@ public class GuiManager {
             openMainMenu(player);
             return;
         }
-
         RoundManager roundManager = game.getRoundManager();
-        GuiSession session = createFramedSession(GuiType.VOTE, MAIN_MENU_SIZE, "节点投票", Material.ORANGE_STAINED_GLASS_PANE);
-        session.setItem(4, createFeatureCard(Material.CLOCK, "投票窗口", List.of(
+        boolean majorSelection = roundManager.isMajorSelectionPhase();
+        GuiSession session = createFramedSession(
+                GuiType.VOTE,
+                MAIN_MENU_SIZE,
+                majorSelection ? "大关卡选择" : "节点投票",
+                Material.ORANGE_STAINED_GLASS_PANE
+        );
+        session.setItem(4, createFeatureCard(Material.CLOCK, majorSelection ? "大关卡窗口" : "投票窗口", List.of(
                 "回合：" + roundManager.getCurrentRound() + "/5",
                 "剩余时间：" + roundManager.getVoteCountdownRemaining() + "秒",
                 "你的选择：" + formatVote(roundManager.getPlayerVote(player.getUniqueId()))
         ), true), null);
         session.setItem(40, createBackCard("返回房间", "返回房间状态页。"), event -> openRoomStatus(player));
-
+        int[] choiceSlots = {20, 22, 24};
+        if (majorSelection) {
+            List<Map.Entry<Integer, String>> choices = new ArrayList<>(roundManager.getMajorChoices().entrySet());
+            choices.sort(Map.Entry.comparingByKey());
+            for (int index = 0; index < choices.size() && index < choiceSlots.length; index++) {
+                Map.Entry<Integer, String> entry = choices.get(index);
+                int choiceIndex = entry.getKey();
+                session.setItem(choiceSlots[index], createFeatureCard(
+                        Material.RECOVERY_COMPASS,
+                        "大关卡 " + choiceIndex,
+                        List.of(
+                                entry.getValue(),
+                                "当前票数：" + roundManager.getVoteCount(choiceIndex),
+                                "测试期间当前仅开放演示线路。",
+                                "点击后锁定这条大关卡。"
+                        ),
+                        roundManager.getPlayerVote(player.getUniqueId()) == choiceIndex
+                ), event -> {
+                    roundManager.castVote(player, choiceIndex);
+                    successFeedback(player);
+                    refreshGame(game);
+                });
+            }
+            player.openInventory(session.getInventory());
+            return;
+        }
         List<Map.Entry<Integer, StageTemplate>> choices = new ArrayList<>(roundManager.getNodeChoices().entrySet());
         choices.sort(Map.Entry.comparingByKey());
-        int[] choiceSlots = {20, 22, 24};
         for (int index = 0; index < choices.size() && index < choiceSlots.length; index++) {
             Map.Entry<Integer, StageTemplate> entry = choices.get(index);
             int choiceIndex = entry.getKey();
@@ -400,7 +430,7 @@ public class GuiManager {
                     "节点 " + choiceIndex + " " + stageLabel(template.stageType()),
                     List.of(
                             "地图：" + template.mapName(),
-                            "关卡 ID：" + template.stageId(),
+                            "节点编号：" + formatStageCode(template.stageId()),
                             "奖励倾向：" + rewardFocus(template.stageType()),
                             "当前票数：" + roundManager.getVoteCount(choiceIndex),
                             "点击后为该路线投票。"
@@ -412,7 +442,6 @@ public class GuiManager {
                 refreshGame(game);
             });
         }
-
         player.openInventory(session.getInventory());
     }
 
@@ -428,7 +457,7 @@ public class GuiManager {
         session.setItem(4, createFeatureCard(Material.AMETHYST_CLUSTER, "选择状态", List.of(
                 "未完成玩家：" + roundManager.getPendingRewardPlayerCount(),
                 "是否锁定：" + yesNo(roundManager.isRewardResolved(player.getUniqueId())),
-                "当前阶段：" + roundManager.getCurrentRoomType()
+                "当前阶段：" + formatRoomType(roundManager.getCurrentRoomType())
         ), true), null);
         session.setItem(40, createBackCard("返回房间", "返回房间状态页。"), event -> openRoomStatus(player));
 
@@ -467,56 +496,50 @@ public class GuiManager {
             openMainMenu(player);
             return;
         }
-
         RoundManager roundManager = game.getRoundManager();
-        RewardPoolDefinition shopPool = RewardManager.getPool("shop_room");
+        List<RoundManager.ShopOffer> offers = roundManager.getActiveShopOffers(player.getUniqueId());
+        long purchasedCount = offers.stream().filter(RoundManager.ShopOffer::purchased).count();
         GuiSession session = createFramedSession(GuiType.SHOP, PAGE_SIZE, "商店补给", Material.YELLOW_STAINED_GLASS_PANE);
-
         session.setItem(4, createFeatureCard(Material.GOLD_BLOCK, "商店状态", List.of(
-                "是否已购买：" + yesNo(roundManager.hasPurchasedShopService(player.getUniqueId())),
+                "当前碎金：" + game.getCoins(player.getUniqueId()),
+                "已购项目：" + purchasedCount + "/" + offers.size(),
                 "未选奖励：" + roundManager.getPendingRewardPlayerCount(),
                 "准备进度：" + progressText(roundManager.getProceedReadyCount(), game.getActivePlayerCount())
         ), true), null);
         session.setItem(49, createBackCard("返回房间", "返回房间状态页。"), event -> openRoomStatus(player));
-
-        if (shopPool != null) {
-            int[] serviceSlots = {19, 21, 23, 25, 31};
-            int serviceIndex = 0;
-            for (String serviceId : shopPool.services()) {
-                if (serviceIndex >= serviceSlots.length) {
-                    break;
+        int[] serviceSlots = {19, 21, 23, 25};
+        for (int index = 0; index < offers.size() && index < serviceSlots.length; index++) {
+            RoundManager.ShopOffer offer = offers.get(index);
+            Material material = switch (offer.id()) {
+                case "demo_terminal_chip" -> Material.ENDER_EYE;
+                default -> Material.GOLD_INGOT;
+            };
+            String priceText = offer.cost() > 0 ? offer.cost() + " 碎金" : "免费";
+            session.setItem(serviceSlots[index], createFeatureCard(
+                    offer.purchased() ? Material.GRAY_DYE : material,
+                    offer.name(),
+                    List.of(
+                            offer.description(),
+                            "价格：" + priceText,
+                            "购买口令：" + roundManager.getShopOfferAlias(offer.id()),
+                            "你持有：" + game.getCoins(player.getUniqueId()) + " 碎金",
+                            offer.purchased() ? "当前商店已购买过该项目。" : "点击后立即购买。"
+                    ),
+                    offer.purchased()
+            ), event -> {
+                boolean purchasedBefore = roundManager.hasPurchasedShopOffer(player.getUniqueId(), offer.id());
+                roundManager.purchaseShopOffer(player, offer.id());
+                if (!purchasedBefore && roundManager.hasPurchasedShopOffer(player.getUniqueId(), offer.id())) {
+                    successFeedback(player);
+                } else {
+                    failFeedback(player);
                 }
-                ServiceDefinition serviceDefinition = RewardManager.getService(serviceId);
-                if (serviceDefinition == null) {
-                    continue;
-                }
-                boolean purchased = roundManager.hasPurchasedShopService(player.getUniqueId());
-                session.setItem(serviceSlots[serviceIndex], createFeatureCard(
-                        purchased ? Material.GRAY_DYE : Material.GOLD_INGOT,
-                        serviceDefinition.name(),
-                        List.of(
-                                serviceDefinition.description(),
-                                "商品 ID：" + serviceDefinition.id(),
-                                purchased ? "当前房间已购买过该商品。" : "点击后购买该服务。"
-                        ),
-                        false
-                ), event -> {
-                    roundManager.handleShopPurchase(player, serviceDefinition.id());
-                    if (roundManager.hasPurchasedShopService(player.getUniqueId())) {
-                        successFeedback(player);
-                    } else {
-                        failFeedback(player);
-                    }
-                    refreshGame(game);
-                });
-                serviceIndex++;
-            }
+                refreshGame(game);
+            });
         }
-
         if (roundManager.isRewardPhase()) {
             session.setItem(40, createActionCard(Material.AMETHYST_SHARD, "打开奖励界面", "返回奖励选择页。"), event -> openRewardMenu(player));
         }
-
         player.openInventory(session.getInventory());
     }
 
@@ -803,10 +826,10 @@ public class GuiManager {
         RoundManager roundManager = game.getRoundManager();
         return List.of(
                 "房间：" + game.getGameId(),
-                "状态：" + game.getGameState(),
+                "状态：" + formatGameState(game.getGameState()),
                 "队伍：" + game.getActivePlayerCount() + " 存活 / " + game.getDeadPlayerCount() + " 阵亡",
                 "回合：" + roundManager.getCurrentRound() + "/5",
-                "阶段：" + roundManager.getCurrentRoomType()
+                "阶段：" + formatRoomType(roundManager.getCurrentRoomType())
         );
     }
 
@@ -873,7 +896,7 @@ public class GuiManager {
         List<String> lore = new ArrayList<>();
         lore.add("提示：" + roundManager.getStatusHint());
         lore.add("回合：" + roundManager.getCurrentRound() + "/5");
-        lore.add("阶段键：" + roundManager.getCurrentRoomType());
+        lore.add("阶段：" + formatRoomType(roundManager.getCurrentRoomType()));
         if (roundManager.isVotingPhase()) {
             lore.add("倒计时：" + roundManager.getVoteCountdownRemaining() + "秒");
         } else if (roundManager.isPeacefulRoom()) {
@@ -952,24 +975,26 @@ public class GuiManager {
     }
 
     private Material materialForBuildLine(String line) {
-        String normalized = line.toLowerCase();
-        if (normalized.startsWith("rewards")) {
+        if (line.startsWith("已领取奖励") || line.startsWith("最近奖励")) {
             return Material.SUNFLOWER;
         }
-        if (normalized.startsWith("relics")) {
+        if (line.startsWith("饰品")) {
             return Material.ENDER_EYE;
         }
-        if (normalized.startsWith("temporary")) {
+        if (line.startsWith("临时强化")) {
             return Material.BLAZE_POWDER;
         }
-        if (normalized.startsWith("recent")) {
-            return Material.PAPER;
+        if (line.startsWith("月蚀碎金")) {
+            return Material.GOLD_INGOT;
         }
         return Material.BOOK;
     }
 
     private String summarizeBuildLine(String line) {
-        int separator = line.indexOf(':');
+        int separator = line.indexOf('：');
+        if (separator <= 0) {
+            separator = line.indexOf(':');
+        }
         if (separator <= 0) {
             return line;
         }
@@ -977,11 +1002,14 @@ public class GuiManager {
     }
 
     private List<String> splitBuildLine(String line) {
-        int separator = line.indexOf(':');
-        if (separator <= 0 || separator >= line.length() - 1) {
-            return List.of(line);
+        int separator = line.indexOf('：');
+        if (separator <= 0) {
+            separator = line.indexOf(':');
         }
-        return wrapLine(line.substring(separator + 1).trim(), 34);
+        if (separator <= 0 || separator >= line.length() - 1) {
+            return buildWrappedLore(line);
+        }
+        return buildWrappedLore(line.substring(separator + 1).trim());
     }
 
     private String stageLabel(String stageType) {
@@ -1002,11 +1030,11 @@ public class GuiManager {
     private String progressText(int current, int total) {
         int safeTotal = Math.max(1, total);
         int safeCurrent = Math.max(0, Math.min(current, safeTotal));
-        StringBuilder bar = new StringBuilder("[");
+        StringBuilder bar = new StringBuilder("【");
         for (int index = 0; index < safeTotal; index++) {
-            bar.append(index < safeCurrent ? "#" : ".");
+            bar.append(index < safeCurrent ? "■" : "□");
         }
-        bar.append("] ").append(safeCurrent).append("/").append(safeTotal);
+        bar.append("】").append(safeCurrent).append("/").append(safeTotal);
         return bar.toString();
     }
 
@@ -1044,8 +1072,47 @@ public class GuiManager {
             case "SHOP" -> "商店";
             case "REST" -> "休息";
             case "EVENT" -> "事件";
-            case "BOSS" -> "Boss";
+            case "BOSS" -> "首领战";
             default -> stageType;
+        };
+    }
+
+    private String formatStageCode(String stageId) {
+        if (stageId == null || stageId.isBlank()) {
+            return "未命名节点";
+        }
+        return stageId.replace('_', '-');
+    }
+
+    private String formatRoomType(String roomType) {
+        if (roomType == null || roomType.isBlank()) {
+            return "未知";
+        }
+        String upper = roomType.toUpperCase();
+        if (upper.equals("MAJOR_SELECT")) {
+            return "大关卡选择";
+        }
+        if (upper.equals("VOTING")) {
+            return "节点投票";
+        }
+        if (upper.startsWith("REWARD/")) {
+            return "奖励选择";
+        }
+        if (upper.equals("LOBBY")) {
+            return "大厅准备";
+        }
+        return formatStageType(roomType);
+    }
+
+    private String formatGameState(GameState gameState) {
+        if (gameState == null) {
+            return "未知";
+        }
+        return switch (gameState) {
+            case WAITING -> "等待中";
+            case STARTING -> "准备开始";
+            case STARTED -> "进行中";
+            case ENDED -> "已结束";
         };
     }
 

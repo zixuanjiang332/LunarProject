@@ -35,7 +35,11 @@ System_Execute_Bleed_Player_T1:
   - setvariable{var=caster.attack_type;type=STRING;val="bleed_dot"} @self
   - damage{a="<caster.var.bleed_intensity>";ia=true;pi=true} @self
   - effect:particles{p=block_crack;material=REDSTONE_BLOCK;amount=30;v=0.5;s=0.2} @self
-  - delay 1
+  - delay 2
+  - skill{s=System_Bleed_Player_T1_Aftermath} @self
+
+System_Bleed_Player_T1_Aftermath:
+  Skills:
   - variablesubtract{var=caster.bleed_intensity;amount=15} @self
 
 System_Execute_Bleed_Player_T2:
@@ -44,28 +48,48 @@ System_Execute_Bleed_Player_T2:
   - setvariable{var=caster.attack_type;type=STRING;val="bleed_dot"} @self
   - damage{a="<caster.var.bleed_intensity>";ia=true;pi=true} @self
   - effect:particles{p=block_crack;material=REDSTONE_BLOCK;amount=50;v=0.5;s=0.2} @self
-  - delay 1
+  - delay 2
+  - skill{s=System_Bleed_Player_T2_Aftermath} @self
+
+System_Bleed_Player_T2_Aftermath:
+  Skills:
   - variablesubtract{var=caster.bleed_intensity;amount=20} @self
 
 System_Execute_Bleed_Player_T3:
   Skills:
+  - setvariable{var=caster.bleed_resolution_snapshot;type=INTEGER;val="<caster.var.bleed_intensity|int>"} @self
   - setvariable{var=caster.damage_mode;type=STRING;val="status"} @self
   - setvariable{var=caster.attack_type;type=STRING;val="bleed_dot"} @self
   - damage{a="<caster.var.bleed_intensity>";ia=true;pi=true} @self
   - effect:particles{p=block_crack;material=REDSTONE_BLOCK;amount=80;v=0.5;s=0.2} @self
-  - delay 1
+  - delay 2
+  - skill{s=System_Bleed_Player_T3_Aftermath} @self
+
+System_Bleed_Player_T3_Aftermath:
+  Skills:
   - variablesubtract{var=caster.bleed_intensity;amount=30} @self
+  - setvariable{var=caster.lust_fragility;type=INTEGER;val=0} ?!variableisset{var=caster.lust_fragility} @self
+  - variableadd{var=caster.lust_fragility;amount=1} @self
   - skill{s=System_Add_LustFragility} @self
+  - setvariable{var=caster.bleed_resolution_snapshot;type=INTEGER;val=0} @self
 
 System_Execute_Bleed_Player_T4:
   Skills:
+  - setvariable{var=caster.bleed_resolution_snapshot;type=INTEGER;val="<caster.var.bleed_intensity|int>"} @self
   - setvariable{var=caster.damage_mode;type=STRING;val="status"} @self
   - setvariable{var=caster.attack_type;type=STRING;val="bleed_dot"} @self
   - damage{a="<caster.var.bleed_intensity>";ia=true;pi=true} @self
   - effect:particles{p=block_crack;material=REDSTONE_BLOCK;amount=120;v=0.5;s=0.2} @self
-  - delay 1
+  - delay 2
+  - skill{s=System_Bleed_Player_T4_Aftermath} @self
+
+System_Bleed_Player_T4_Aftermath:
+  Skills:
   - variablesubtract{var=caster.bleed_intensity;amount=30} @self
-  - skill{s=System_Add_LustFragility;repeat=1;repeatInterval=1} @self
+  - setvariable{var=caster.lust_fragility;type=INTEGER;val=0} ?!variableisset{var=caster.lust_fragility} @self
+  - variableadd{var=caster.lust_fragility;amount=2} @self
+  - skill{s=System_Add_LustFragility} @self
+  - setvariable{var=caster.bleed_resolution_snapshot;type=INTEGER;val=0} @self
 
 System_Apply_Bleed_Mob_Branch:
   Skills:
@@ -90,7 +114,11 @@ System_Execute_Bleed_Mob_T1:
   - setvariable{var=caster.attack_sin;type=STRING;val="lust"} @self
   - damage{a="<caster.var.bleed_intensity>";ia=true;pi=true} @self
   - effect:particles{p=block_crack;material=REDSTONE_BLOCK;amount=40;v=0.5;s=0.2} @self
-  - delay 1
+  - delay 2
+  - skill{s=System_Bleed_Mob_T1_Aftermath} @self
+
+System_Bleed_Mob_T1_Aftermath:
+  Skills:
   - variablesubtract{var=caster.bleed_intensity;amount=15} @self
 
 System_Execute_Bleed_Mob_T2:
@@ -100,28 +128,50 @@ System_Execute_Bleed_Mob_T2:
   - setvariable{var=caster.attack_sin;type=STRING;val="lust"} @self
   - damage{a="<caster.var.bleed_intensity>";ia=true;pi=true} @self
   - effect:particles{p=block_crack;material=REDSTONE_BLOCK;amount=60;v=0.5;s=0.2} @self
-  - delay 1
+  - delay 2
+  - skill{s=System_Bleed_Mob_T2_Aftermath} @self
+
+System_Bleed_Mob_T2_Aftermath:
+  Skills:
   - variablesubtract{var=caster.bleed_intensity;amount=20} @self
 
 System_Execute_Bleed_Mob_T3:
   Skills:
+  - setvariable{var=caster.bleed_resolution_snapshot;type=INTEGER;val="<caster.var.bleed_intensity|int>"} @self
   - setvariable{var=caster.damage_mode;type=STRING;val="status"} @self
   - setvariable{var=caster.attack_type;type=STRING;val="bleed"} @self
   - setvariable{var=caster.attack_sin;type=STRING;val="lust"} @self
   - damage{a="<caster.var.bleed_intensity>";ia=true;pi=true} @self
   - effect:particles{p=block_crack;material=REDSTONE_BLOCK;amount=90;v=0.5;s=0.2} @self
-  - delay 1
+  - delay 2
+  - skill{s=System_Bleed_Mob_T3_Aftermath} @self
+
+System_Bleed_Mob_T3_Aftermath:
+  Skills:
   - variablesubtract{var=caster.bleed_intensity;amount=30} @self
+  - setvariable{var=caster.lust_fragility;type=INTEGER;val=0} ?!variableisset{var=caster.lust_fragility} @self
+  - variableadd{var=caster.lust_fragility;amount=1} @self
   - skill{s=System_Add_LustFragility} @self
+  - setvariable{var=caster.bleed_resolution_snapshot;type=INTEGER;val=0} @self
 
 System_Execute_Bleed_Mob_T4:
   Skills:
+  - setvariable{var=caster.bleed_resolution_snapshot;type=INTEGER;val="<caster.var.bleed_intensity|int>"} @self
   - setvariable{var=caster.damage_mode;type=STRING;val="status"} @self
   - setvariable{var=caster.attack_type;type=STRING;val="bleed"} @self
   - setvariable{var=caster.attack_sin;type=STRING;val="lust"} @self
   - damage{a="<caster.var.bleed_intensity>";ia=true;pi=true} @self
   - effect:particles{p=block_crack;material=REDSTONE_BLOCK;amount=150;v=0.5;s=0.2} @self
-  - delay 1
+  - delay 2
+  - skill{s=System_Bleed_Mob_T4_Aftermath} @self
+
+System_Bleed_Mob_T4_Aftermath:
+  Skills:
   - variablesubtract{var=caster.bleed_intensity;amount=30} @self
-  - skill{s=System_Add_LustFragility;repeat=1;repeatInterval=1} @self
-  - skill{s=System_Add_PureFragility} ?variableequals{var=caster.bleed_intensity;value=99} @self
+  - setvariable{var=caster.lust_fragility;type=INTEGER;val=0} ?!variableisset{var=caster.lust_fragility} @self
+  - variableadd{var=caster.lust_fragility;amount=2} @self
+  - skill{s=System_Add_LustFragility} @self
+  - setvariable{var=caster.pure_fragility;type=INTEGER;val=0} ?!variableisset{var=caster.pure_fragility} @self
+  - variableadd{var=caster.pure_fragility;amount=1} ?variableequals{var=caster.bleed_resolution_snapshot;value=99} @self
+  - skill{s=System_Add_PureFragility} ?variableequals{var=caster.bleed_resolution_snapshot;value=99} @self
+  - setvariable{var=caster.bleed_resolution_snapshot;type=INTEGER;val=0} @self

@@ -37,7 +37,7 @@ public class StageManager {
         String db = LunarProject.getInstance().getConfig().getString("database.database");
         String user = LunarProject.getInstance().getConfig().getString("database.username");
         String pass = LunarProject.getInstance().getConfig().getString("database.password");
-        String url = "jdbc:mysql://" + host + ":" + port + "/" + db + "?useSSL=false&characterEncoding=utf8";
+        String url = buildJdbcUrl(host, port, db);
 
         Map<String, StageTemplate> tempMap = new HashMap<>();
         String sql = "SELECT t.stage_id, t.tier, t.round, t.stage_type, t.map_name, m.wave, m.mythicmobs_id, m.amount " +
@@ -85,6 +85,9 @@ public class StageManager {
             }
         } catch (Exception exception) {
             validationErrors.add("Database connection or query failed: " + exception.getMessage());
+            if (exception.getMessage() != null && exception.getMessage().contains("Public Key Retrieval is not allowed")) {
+                validationErrors.add("MySQL rejected public key retrieval. The plugin now expects allowPublicKeyRetrieval=true in the JDBC URL.");
+            }
             return false;
         }
 
@@ -207,6 +210,21 @@ public class StageManager {
 
     private static boolean requiresCombatSpawns(String stageType) {
         return !"EVENT".equals(stageType) && !"SHOP".equals(stageType) && !"REST".equals(stageType);
+    }
+
+    private static String buildJdbcUrl(String host, int port, String database) {
+        String configuredTimezone = LunarProject.getInstance().getConfig()
+                .getString("database.server-timezone", "Asia/Shanghai");
+        boolean useSsl = LunarProject.getInstance().getConfig().getBoolean("database.use-ssl", false);
+        boolean allowPublicKeyRetrieval = LunarProject.getInstance().getConfig()
+                .getBoolean("database.allow-public-key-retrieval", true);
+
+        return "jdbc:mysql://" + host + ":" + port + "/" + database
+                + "?useUnicode=true"
+                + "&characterEncoding=utf8"
+                + "&useSSL=" + useSsl
+                + "&allowPublicKeyRetrieval=" + allowPublicKeyRetrieval
+                + "&serverTimezone=" + configuredTimezone;
     }
 
     private static void ensureSchema(Connection connection) throws SQLException {

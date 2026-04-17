@@ -2,8 +2,8 @@ name: LunarProject
 version: '1.0-SNAPSHOT'
 main: jdd.lunarProject.LunarProject
 api-version: '1.21'
-description: Roguelike gameplay loop plugin for LunarProject
+description: LunarProject 肉鸽流程插件
 commands:
   game:
-    description: LunarProject game command
+    description: LunarProject 主流程指令
     usage: /game

@@ -2,15 +2,12 @@ package jdd.lunarProject.Game;
 
 import jdd.lunarProject.Build.EventConfigManager;
 import jdd.lunarProject.Build.EventDefinition;
+import jdd.lunarProject.Config.MessageManager;
 import jdd.lunarProject.Game.StageModels.StageTemplate;
-import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Player;
-import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
 
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.Consumer;
 
 public final class RandomEventManager {
     private static final List<String> DEFAULT_EVENT_POOL = List.of(
@@ -54,25 +51,24 @@ public final class RandomEventManager {
             game.broadcast("§b[1] §f" + eventDefinition.optionOne());
             game.broadcast("§b[2] §f" + eventDefinition.optionTwo());
         } else {
-            game.broadcast("§6你在房间中发现了一个异常事件，但当前没有读取到对应的事件配置。");
-            game.broadcast("§b[1] §f谨慎离开");
-            game.broadcast("§b[2] §f继续调查");
+            game.broadcast(MessageManager.text("event.intro-fallback", "§6你在房间中发现了一段未定义的异常记录。"));
+            game.broadcast(MessageManager.text("event.option-one-fallback", "§b[1] §f谨慎离开"));
+            game.broadcast(MessageManager.text("event.option-two-fallback", "§b[2] §f继续调查"));
         }
-        game.broadcast("§e使用 /game event choose <1|2> 进行选择。");
+        game.broadcast(MessageManager.text("event.choose-prompt", "§e使用 /game event choose <1|2> 进行选择。"));
     }
 
     public static EventOutcome resolveTimeout(Game game, String eventId) {
         if (eventId == null || eventId.isBlank()) {
             return EventOutcome.INVALID;
         }
-        game.broadcast("§e事件选择超时，系统将默认执行选项 1。");
+        game.broadcast(MessageManager.text("event.choose-timeout", "§e事件选择超时，系统将默认执行选项 1。"));
         return handleEventChoice(game, pickFallbackPlayer(game), eventId, 1);
     }
 
     private static EventOutcome handleWeirdMachine(Game game, Player player, int choice) {
         if (choice == 1) {
-            adjustSanityForAlivePlayers(game, 5);
-            game.broadcast("§a队伍谨慎地避开了古怪装置，理智略有恢复。");
+            game.broadcast(MessageManager.text("event.weird-machine-safe", "§a队伍谨慎地避开了古怪装置，本次事件不直接发放任何增益。"));
             return EventOutcome.SAFE_RESOLVED;
         }
 
@@ -80,7 +76,7 @@ public final class RandomEventManager {
             return EventOutcome.INVALID;
         }
 
-        game.broadcast("§c" + player.getName() + " 触碰了古怪装置，周围的空气开始扭曲。");
+        game.broadcast(MessageManager.format("event.weird-machine-trigger", "§c%player% 触碰了古怪装置，周围的空气开始扭曲。", "player", player.getName()));
         if (ThreadLocalRandom.current().nextDouble() < 0.55) {
             StageTemplate ambushTemplate = findAmbushTemplate(game);
             if (ambushTemplate != null) {
@@ -89,17 +85,13 @@ public final class RandomEventManager {
             }
         }
 
-        applyTeamEffect(game, alive -> alive.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, 20 * 90, 0, false, true, true)));
-        adjustSanityForAlivePlayers(game, 8);
-        game.broadcast("§a装置最终稳定下来，队伍获得了短暂庇护与理智恢复。");
+        game.broadcast(MessageManager.text("event.weird-machine-stable", "§a装置最终稳定下来，但当前测试阶段不会额外发放任何增益。"));
         return EventOutcome.SAFE_RESOLVED;
     }
 
     private static EventOutcome handleAbandonedSupplies(Game game, Player player, int choice) {
         if (choice == 1) {
-            healAlivePlayersPercent(game, 0.20);
-            adjustSanityForAlivePlayers(game, 8);
-            game.broadcast("§a队伍整理了废弃补给，恢复了部分生命与理智。");
+            game.broadcast(MessageManager.text("event.supplies-safe", "§a队伍整理了废弃补给，但当前测试阶段不再直接提供恢复与增益。"));
             return EventOutcome.SAFE_RESOLVED;
         }
 
@@ -107,17 +99,13 @@ public final class RandomEventManager {
             return EventOutcome.INVALID;
         }
 
-        player.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 20 * 90, 0, false, true, true));
-        player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 20 * 90, 0, false, true, true));
-        game.changePlayerSanity(player, -10);
-        game.broadcast("§e" + player.getName() + " 强行拆解了补给箱，获得临时强化，但也付出了理智代价。");
+        game.broadcast(MessageManager.format("event.supplies-risk", "§e%player% 强行拆解了补给箱，但当前测试阶段不再直接发放临时强化。", "player", player.getName()));
         return EventOutcome.SAFE_RESOLVED;
     }
 
     private static EventOutcome handleWhisperingConsole(Game game, Player player, int choice) {
         if (choice == 1) {
-            adjustSanityForAlivePlayers(game, 3);
-            game.broadcast("§a控制台的低语逐渐平息，队伍稳住了心神。");
+            game.broadcast(MessageManager.text("event.console-safe", "§a控制台的低语逐渐平息，本次事件以无增益的安全结果收尾。"));
             return EventOutcome.SAFE_RESOLVED;
         }
 
@@ -125,9 +113,7 @@ public final class RandomEventManager {
             return EventOutcome.INVALID;
         }
 
-        applyTeamEffect(game, alive -> alive.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, 20 * 120, 1, false, true, true)));
-        adjustSanityForAlivePlayers(game, -6);
-        game.broadcast("§e" + player.getName() + " 解开了控制台封锁，队伍获得护盾，但也承受了精神压力。");
+        game.broadcast(MessageManager.format("event.console-risk", "§e%player% 解开了控制台封锁，但当前测试阶段不再直接发放护盾与其他增益。", "player", player.getName()));
         return EventOutcome.SAFE_RESOLVED;
     }
 
@@ -141,27 +127,6 @@ public final class RandomEventManager {
             ambushTemplate = StageManager.getAnyStageFallback(1, currentRound);
         }
         return ambushTemplate;
-    }
-
-    private static void healAlivePlayersPercent(Game game, double percent) {
-        applyTeamEffect(game, player -> {
-            if (player.getAttribute(Attribute.MAX_HEALTH) == null) {
-                return;
-            }
-            double maxHealth = player.getAttribute(Attribute.MAX_HEALTH).getValue();
-            double healedHealth = Math.min(maxHealth, player.getHealth() + (maxHealth * percent));
-            player.setHealth(Math.max(1.0, healedHealth));
-        });
-    }
-
-    private static void adjustSanityForAlivePlayers(Game game, int delta) {
-        applyTeamEffect(game, player -> game.changePlayerSanity(player, delta));
-    }
-
-    private static void applyTeamEffect(Game game, Consumer<Player> effect) {
-        for (Player alive : game.getActiveOnlinePlayers()) {
-            effect.accept(alive);
-        }
     }
 
     private static Player pickFallbackPlayer(Game game) {

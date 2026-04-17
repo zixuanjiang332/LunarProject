@@ -4,6 +4,9 @@ database:
   database: "lunarproject"
   username: "root"
   password: "1054874739"
+  use-ssl: false
+  allow-public-key-retrieval: true
+  server-timezone: "Asia/Shanghai"
 game:
   min-players: 1
   max-players: 4
